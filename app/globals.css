@@ -1,26 +1,66 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* === БАЗОВЫЕ СТИЛИ ДЛЯ ССЫЛОК И КНОПОК === */
+
+/* Убираем стандартное подчеркивание и синий цвет у всех ссылок */
+a {
+  text-decoration: none;
+  color: inherit;
+  /* Наследует цвет от родителя */
+}
+
+.container {
+  width: 100%;
+  max-width: 1240px;
+  /* Максимальная ширина как в Figma */
+  margin-left: auto;
+  /* Центрирование */
+  margin-right: auto;
+  padding-left: 16px;
+  /* Фиксированный отступ ВСЕГДА */
+  padding-right: 16px;
+}
+
+@media (max-width: 768px) {
+  .container {
+    max-width: 100%;
+    padding: 0 12px;
+  }
+}
+
+/* Убираем стандартные рамки и фон у кнопок */
+button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Убираем маркеры списков (если будешь использовать ul/li) */
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Базовый сброс box-sizing для всех элементов */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }

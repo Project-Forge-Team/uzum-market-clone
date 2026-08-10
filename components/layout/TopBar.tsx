@@ -2,54 +2,59 @@ import { MapPin, ChevronDown } from 'lucide-react';
 
 export default function TopBar() {
   return (
-    <div className="bg-[#F0F2F5] text-[14px] font-semibold">
-      {/* 
-        Адаптивный контейнер:
-        - w-full max-w-[1240px] mx-auto px-4 — точная ширина как у шапки
-        - flex-col gap-2 py-[9px] — по умолчанию колонка для мобильных
-        - lg:flex-row lg:justify-between — на десктопе (1024px+) в ряд
-      */}
-      <div className="w-full max-w-[1240px] mx-auto px-4 flex flex-col gap-2 py-[9px] lg:flex-row lg:items-center lg:justify-between">
+    <div className="bg-[#F0F2F5] text-[13px] sm:text-[14px] font-medium text-[#1F1F1F]">
+      <div className="w-full max-w-[1240px] mx-auto px-4 flex items-center justify-between h-[36px]">
 
         {/* ЛЕВАЯ ЧАСТЬ */}
-        <div className="flex items-center gap-[24px]">
-          <button className="flex items-center gap-[3px] hover:text-[#1F1F1F] transition-colors">
-            <MapPin size={14} />
-            Ташкент
-            <ChevronDown size={12} />
+        <div className="flex items-center gap-4 sm:gap-6">
+          {/* Выбор города */}
+          <button className="flex items-center gap-1 hover:opacity-70 transition-opacity">
+            <MapPin size={15} className="text-[#1F1F1F]" />
+            <span className="underline decoration-dotted underline-offset-4">Ташкент</span>
+            <ChevronDown size={14} className="text-[#6B7280]" />
           </button>
 
+          {/* Пункты выдачи (скрываем на совсем маленьких экранах) */}
           <a
             href="#"
-            className="text-[#6B7280] hover:text-[#1F1F1F] transition-colors"
+            className="hidden sm:inline-block text-[#6B7280] hover:text-[#1F1F1F] transition-colors"
           >
             Пункты выдачи
           </a>
         </div>
 
-        {/* ПРАВАЯ ЧАСТЬ */}
-        {/* hidden lg:flex — скрываем на мобильных, показываем только на десктопе */}
-        <div className="flex items-center gap-[12px]">
-          <a
-            href="#"
-            className="text-[#7F4DFF] pr-[12px] border-r-2 border-[#DEE0E5] hover:text-[#5A3DCC] transition-colors hidden lg:flex"
-          >
-            Стать продавцом
-          </a>
-          <a href="#" className="text-[#7F4DFF] hover:text-[#5A3DCC] transition-colors hidden lg:flex">Открыть пункт выдачи</a>
-          <a href="#" className="text-[#6B7280] hover:text-[#1F1F1F] transition-colors hidden lg:flex">Вопрос-ответ</a>
-          <a href="#" className="text-[#6B7280] hover:text-[#1F1F1F] transition-colors hidden lg:flex">Мои заказы</a>
+        {/* ЦЕНТРАЛЬНАЯ / ПРАВАЯ ЧАСТЬ (Информационная плашка в стиле Uzum) */}
+        <div className="hidden md:flex items-center text-[#7F4DFF] font-semibold text-[13px]">
+          <span>Доставим ваш заказ бесплатно за 1 день!</span>
+        </div>
 
-          <div className="flex items-center gap-[8px] cursor-pointer hover:opacity-80 transition-opacity">
+        {/* ПРАВАЯ ЧАСТЬ */}
+        <div className="flex items-center gap-4 sm:gap-6">
+          {/* Ссылки для партнеров и покупателей (только на десктопе) */}
+          <div className="hidden lg:flex items-center gap-4 text-[#6B7280]">
+            <a href="#" className="text-[#7F4DFF] font-medium hover:text-[#5A3DCC] transition-colors">
+              Стать продавцом
+            </a>
+            <a href="#" className="text-[#7F4DFF] font-medium hover:text-[#5A3DCC] transition-colors">
+              Открыть пункт выдачи
+            </a>
+            <a href="#" className="hover:text-[#1F1F1F] transition-colors">
+              Вопрос-ответ
+            </a>
+            <a href="#" className="hover:text-[#1F1F1F] transition-colors">
+              Мои заказы
+            </a>
+          </div>
+
+          {/* Переключатель языка (виден всегда) */}
+          <button className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity">
             <img
               src="/icons/russia.png"
               alt="Флаг России"
-              width={15}
-              height={15}
-              className="rounded-sm object-cover"
+              className="w-[16px] h-[12px] rounded-[2px] object-cover"
             />
-            <span>Русский</span>
-          </div>
+            <span className="text-[#1F1F1F]">Русский</span>
+          </button>
         </div>
 
       </div>

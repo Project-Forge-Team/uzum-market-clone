@@ -1,6 +1,8 @@
+import MainPage from "@/components/layout/MainPage";
 export default function Home() {
   return (
-    <main>
-    </main>
+    <>
+      <MainPage />
+    </>
   );
 }

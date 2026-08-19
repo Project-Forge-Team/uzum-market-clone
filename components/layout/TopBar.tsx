@@ -1,16 +1,17 @@
-import { MapPin, ChevronDown } from 'lucide-react';
+import { MapPin, ChevronDown } from "lucide-react";
 
 export default function TopBar() {
   return (
     <div className="bg-[#F0F2F5] text-[13px] sm:text-[14px] font-medium text-[#1F1F1F]">
       <div className="w-full max-w-[1240px] mx-auto px-4 flex items-center justify-between h-[36px]">
-
         {/* ЛЕВАЯ ЧАСТЬ */}
         <div className="flex items-center gap-4 sm:gap-6">
           {/* Выбор города */}
           <button className="flex items-center gap-1 hover:opacity-70 transition-opacity">
             <MapPin size={15} className="text-[#1F1F1F]" />
-            <span className="underline decoration-dotted underline-offset-4">Ташкент</span>
+            <span className="underline decoration-dotted underline-offset-4">
+              Ташкент
+            </span>
             <ChevronDown size={14} className="text-[#6B7280]" />
           </button>
 
@@ -32,10 +33,16 @@ export default function TopBar() {
         <div className="flex items-center gap-4 sm:gap-6">
           {/* Ссылки для партнеров и покупателей (только на десктопе) */}
           <div className="hidden lg:flex items-center gap-4 text-[#6B7280]">
-            <a href="#" className="text-[#7F4DFF] font-medium hover:text-[#5A3DCC] transition-colors">
+            <a
+              href="#"
+              className="text-[#7F4DFF] font-medium hover:text-[#5A3DCC] transition-colors"
+            >
               Стать продавцом
             </a>
-            <a href="#" className="text-[#7F4DFF] font-medium hover:text-[#5A3DCC] transition-colors">
+            <a
+              href="#"
+              className="text-[#7F4DFF] font-medium hover:text-[#5A3DCC] transition-colors"
+            >
               Открыть пункт выдачи
             </a>
             <a href="#" className="hover:text-[#1F1F1F] transition-colors">
@@ -56,7 +63,6 @@ export default function TopBar() {
             <span className="text-[#1F1F1F]">Русский</span>
           </button>
         </div>
-
       </div>
     </div>
   );

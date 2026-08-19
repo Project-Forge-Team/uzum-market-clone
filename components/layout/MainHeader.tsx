@@ -1,11 +1,20 @@
 "use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { 
-  Menu, X, Search, User, Heart, ShoppingBag, 
-  Sofa, Tent, Monitor, WashingMachine, Shirt 
-} from 'lucide-react';
+import { useState } from "react";
+import Link from "next/link";
+import {
+  Menu,
+  X,
+  Search,
+  User,
+  Heart,
+  ShoppingBag,
+  Sofa,
+  Tent,
+  Monitor,
+  WashingMachine,
+  Shirt,
+} from "lucide-react";
 
 export default function MainHeader() {
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
@@ -14,12 +23,15 @@ export default function MainHeader() {
     <>
       <header className="bg-white border-b border-gray-100 relative z-20">
         <div className="w-full max-w-[1240px] mx-auto px-4 py-3 md:py-4 flex flex-col md:flex-row items-center gap-3 md:gap-6">
-          
           {/* ВЕРХНЯЯ СТРОКА (Лого + Каталог + Иконки на мобильном) */}
           <div className="w-full md:w-auto flex items-center justify-between gap-3 shrink-0">
             {/* Логотип */}
             <Link href="/" className="flex items-center">
-              <img src="/headLogo.png" alt="Uzum Market" className="h-[22px] sm:h-[26px] w-auto" />
+              <img
+                src="/headLogo.png"
+                alt="Uzum Market"
+                className="h-[22px] sm:h-[26px] w-auto"
+              />
             </Link>
 
             {/* Кнопка Каталог (Скрывается на совсем маленьких экранах или адаптируется) */}
@@ -61,20 +73,28 @@ export default function MainHeader() {
 
           {/* ПРАВАЯ ЧАСТЬ (Только для ДЕСКТОПА md+) */}
           <div className="hidden md:flex items-center gap-6 shrink-0">
-            <a href="#" className="flex items-center gap-2 text-gray-700 hover:text-[#7000FF] transition-colors">
+            <a
+              href="#"
+              className="flex items-center gap-2 text-gray-700 hover:text-[#7000FF] transition-colors"
+            >
               <User size={22} />
               <span className="font-medium text-[14px]">Shahzod</span>
             </a>
-            <a href="#" className="flex items-center gap-2 text-gray-700 hover:text-[#7000FF] transition-colors">
+            <a
+              href="#"
+              className="flex items-center gap-2 text-gray-700 hover:text-[#7000FF] transition-colors"
+            >
               <Heart size={22} />
               <span className="font-medium text-[14px]">Избранное</span>
             </a>
-            <a href="#" className="flex items-center gap-2 text-gray-700 hover:text-[#7000FF] transition-colors">
+            <a
+              href="#"
+              className="flex items-center gap-2 text-gray-700 hover:text-[#7000FF] transition-colors"
+            >
               <ShoppingBag size={22} />
               <span className="font-medium text-[14px]">Корзина</span>
             </a>
           </div>
-
         </div>
       </header>
 
@@ -90,7 +110,9 @@ export default function MainHeader() {
           >
             {/* Кнопка закрытия */}
             <div className="flex items-center justify-between mb-6 pb-3 border-b border-gray-100 md:border-none">
-              <h2 className="text-xl font-bold text-gray-900">Каталог товаров</h2>
+              <h2 className="text-xl font-bold text-gray-900">
+                Каталог товаров
+              </h2>
               <button
                 onClick={() => setIsCatalogOpen(false)}
                 className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500"
@@ -102,23 +124,38 @@ export default function MainHeader() {
             {/* Элементы каталога */}
             <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
               <li className="flex items-center gap-3 p-3.5 bg-gray-50 rounded-xl hover:bg-[#F0F0FF] hover:text-[#7000FF] transition-colors cursor-pointer group">
-                <Sofa size={22} className="text-gray-400 group-hover:text-[#7000FF]" />
+                <Sofa
+                  size={22}
+                  className="text-gray-400 group-hover:text-[#7000FF]"
+                />
                 <span className="font-medium text-[15px]">Мебель</span>
               </li>
               <li className="flex items-center gap-3 p-3.5 bg-gray-50 rounded-xl hover:bg-[#F0F0FF] hover:text-[#7000FF] transition-colors cursor-pointer group">
-                <Tent size={22} className="text-gray-400 group-hover:text-[#7000FF]" />
+                <Tent
+                  size={22}
+                  className="text-gray-400 group-hover:text-[#7000FF]"
+                />
                 <span className="font-medium text-[15px]">Туризм и спорт</span>
               </li>
               <li className="flex items-center gap-3 p-3.5 bg-gray-50 rounded-xl hover:bg-[#F0F0FF] hover:text-[#7000FF] transition-colors cursor-pointer group">
-                <Monitor size={22} className="text-gray-400 group-hover:text-[#7000FF]" />
+                <Monitor
+                  size={22}
+                  className="text-gray-400 group-hover:text-[#7000FF]"
+                />
                 <span className="font-medium text-[15px]">Электроника</span>
               </li>
               <li className="flex items-center gap-3 p-3.5 bg-gray-50 rounded-xl hover:bg-[#F0F0FF] hover:text-[#7000FF] transition-colors cursor-pointer group">
-                <WashingMachine size={22} className="text-gray-400 group-hover:text-[#7000FF]" />
+                <WashingMachine
+                  size={22}
+                  className="text-gray-400 group-hover:text-[#7000FF]"
+                />
                 <span className="font-medium text-[15px]">Бытовая техника</span>
               </li>
               <li className="flex items-center gap-3 p-3.5 bg-gray-50 rounded-xl hover:bg-[#F0F0FF] hover:text-[#7000FF] transition-colors cursor-pointer group">
-                <Shirt size={22} className="text-gray-400 group-hover:text-[#7000FF]" />
+                <Shirt
+                  size={22}
+                  className="text-gray-400 group-hover:text-[#7000FF]"
+                />
                 <span className="font-medium text-[15px]">Одежда</span>
               </li>
             </ul>

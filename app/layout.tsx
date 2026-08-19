@@ -7,7 +7,8 @@ import CategoryNav from "@/components/layout/CategoryNav";
 import HeroBanner from "@/components/layout/HeroBanner";
 import RecommendedSection from "@/components/layout/RecommendedSection";
 import SpecialOffersSection from "@/components/layout/SpecialOffersSection";
-import Footer from '@/components/layout/Footer';
+import Footer from "@/components/layout/Footer";
+import MainPage from "@/components/layout/MainPage";
 
 // Настраиваем шрифт (subsets: ["latin", "cyrillic"] нужны для русского языка!)
 const inter = Inter({
@@ -31,12 +32,13 @@ export default function RootLayout({
       <body className={inter.className}>
         <TopBar />
         <MainHeader />
-        <CategoryNav />
+        {/* <MainPage /> */}
+        {/* <CategoryNav />
         <HeroBanner />
-        <RecommendedSection />
-        <SpecialOffersSection />
-        <Footer />
+        <RecommendedSection />  
+        <SpecialOffersSection /> */}
         {children}
+        <Footer />
       </body>
     </html>
   );

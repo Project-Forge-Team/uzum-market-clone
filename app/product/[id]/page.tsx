@@ -1,7 +1,7 @@
+// app/product/[id]/page.tsx
 import { notFound } from "next/navigation";
-import { mockProducts } from "@/data/mockProducts";
+import { fetchProduct } from "@/lib/api";
 import ProductGallery from "@/components/ProductGallery";
-import Link from "next/link";
 import {
   Star,
   Truck,
@@ -12,26 +12,29 @@ import {
   ShoppingCart,
 } from "lucide-react";
 import Image from "next/image";
-
+import Link from "next/link";
 interface ProductPageProps {
   params: { id: string };
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { id } = await params;
-  const product = mockProducts.find((p) => p.id === Number(id));
+  const product = await fetchProduct(id);
 
   if (!product) {
     notFound();
   }
 
-  // Похожие товары (для примера возьмём товары той же категории или просто первые 4)
-  const relatedProducts = mockProducts
-    .filter((p) => p.id !== product.id)
-    .slice(0, 4);
-
-  const discountPercent = product.oldPrice
-    ? Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)
+  // Приводим типы для компонентов
+  const productImages = product.images?.length
+    ? product.images
+    : [product.image];
+  const discountPercent = product.old_price
+    ? Math.round(
+        ((Number(product.old_price) - Number(product.price)) /
+          Number(product.old_price)) *
+          100,
+      )
     : 0;
 
   return (
@@ -45,10 +48,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
         {product.category && (
           <>
             <a
-              href={`/catalog/${product.category.toLowerCase()}`}
+              href={`/catalog/${product.category.slug}`}
               className="hover:text-[#7000FF] transition-colors"
             >
-              {product.category}
+              {product.category.name}
             </a>
             <ChevronRight size={14} />
           </>
@@ -56,21 +59,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
         <span className="text-gray-700 truncate">{product.title}</span>
       </nav>
 
-      {/* Основная секция */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-        {/* Галерея */}
-        <ProductGallery
-          images={product.images || [product.image]}
-          title={product.title}
-        />
-
-        {/* Информация о товаре */}
+        <ProductGallery images={productImages} title={product.title} />
         <div className="flex flex-col">
           <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 leading-tight">
             {product.title}
           </h1>
-
-          {/* Рейтинг и отзывы */}
           <div className="flex items-center gap-3 mt-3">
             <div className="flex items-center gap-1">
               <Star size={18} className="fill-yellow-400 text-yellow-400" />
@@ -80,19 +74,18 @@ export default async function ProductPage({ params }: ProductPageProps) {
               href="#reviews"
               className="text-[#7000FF] hover:underline text-sm"
             >
-              {product.reviewsCount} отзывов
+              {product.reviews_count} отзывов
             </a>
           </div>
 
-          {/* Цена */}
           <div className="mt-5 flex items-end gap-3 flex-wrap">
             <span className="text-3xl md:text-4xl font-bold text-gray-900">
-              {product.price.toLocaleString()} сум
+              {Number(product.price).toLocaleString()} сум
             </span>
-            {product.oldPrice && (
+            {product.old_price && (
               <>
                 <span className="text-lg text-gray-400 line-through">
-                  {product.oldPrice.toLocaleString()} сум
+                  {Number(product.old_price).toLocaleString()} сум
                 </span>
                 <span className="bg-red-100 text-red-600 text-sm font-semibold px-2 py-1 rounded-lg">
                   -{discountPercent}%
@@ -101,15 +94,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
             )}
           </div>
 
-          {/* Рассрочка */}
-          {product.monthlyPayment && (
+          {product.monthly_payment && (
             <div className="mt-3 inline-flex items-center gap-2 bg-[#F0F0FF] text-[#7000FF] text-sm font-medium px-4 py-2 rounded-xl w-fit">
               <ShieldCheck size={16} />
-              от {product.monthlyPayment.toLocaleString()} сум/мес
+              от {Number(product.monthly_payment).toLocaleString()} сум/мес
             </div>
           )}
 
-          {/* Кнопки */}
           <div className="mt-6 space-y-3">
             <button className="w-full bg-[#7000FF] text-white py-4 rounded-xl font-semibold text-lg hover:bg-[#5a00cc] transition-colors flex items-center justify-center gap-2">
               <ShoppingCart size={20} />
@@ -120,16 +111,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
             </button>
           </div>
 
-          {/* Доставка */}
           <div className="mt-5 flex items-start gap-3 bg-gray-50 p-4 rounded-xl">
             <Truck size={22} className="text-gray-600 mt-0.5" />
             <div>
               <p className="font-medium text-gray-900">Доставка</p>
-              <p className="text-gray-600">{product.deliveryTime}</p>
+              <p className="text-gray-600">{product.delivery_time}</p>
             </div>
           </div>
 
-          {/* Продавец */}
           {product.seller && (
             <div className="mt-4 flex items-center justify-between bg-white border border-gray-200 p-4 rounded-xl">
               <div className="flex items-center gap-3">
@@ -145,7 +134,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       size={14}
                       className="fill-yellow-400 text-yellow-400"
                     />
-                    {product.seller.rating} · {product.seller.reviewsCount}{" "}
+                    {product.seller.rating} · {product.seller.reviews_count}{" "}
                     отзывов
                   </div>
                 </div>
@@ -156,7 +145,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
             </div>
           )}
 
-          {/* Кнопка избранного */}
           <button className="mt-3 flex items-center gap-2 text-gray-500 hover:text-[#7000FF] transition-colors">
             <Heart size={18} />В избранное
           </button>
@@ -164,32 +152,33 @@ export default async function ProductPage({ params }: ProductPageProps) {
       </div>
 
       {/* Характеристики */}
-      {product.characteristics && (
-        <section className="mt-12">
-          <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">
-            Характеристики
-          </h2>
-          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-            <table className="w-full text-sm">
-              <tbody>
-                {Object.entries(product.characteristics).map(
-                  ([key, value], index) => (
-                    <tr
-                      key={key}
-                      className={index % 2 === 0 ? "bg-gray-50" : "bg-white"}
-                    >
-                      <td className="px-4 py-3 text-gray-500 w-1/3">{key}</td>
-                      <td className="px-4 py-3 text-gray-900 font-medium">
-                        {value}
-                      </td>
-                    </tr>
-                  ),
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+      {product.characteristics &&
+        Object.keys(product.characteristics).length > 0 && (
+          <section className="mt-12">
+            <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">
+              Характеристики
+            </h2>
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+              <table className="w-full text-sm">
+                <tbody>
+                  {Object.entries(product.characteristics).map(
+                    ([key, value], index) => (
+                      <tr
+                        key={key}
+                        className={index % 2 === 0 ? "bg-gray-50" : "bg-white"}
+                      >
+                        <td className="px-4 py-3 text-gray-500 w-1/3">{key}</td>
+                        <td className="px-4 py-3 text-gray-900 font-medium">
+                          {value}
+                        </td>
+                      </tr>
+                    ),
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
       {/* Описание */}
       {product.description && (
@@ -204,7 +193,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       {/* Отзывы */}
       <section id="reviews" className="mt-12">
         <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">
-          Отзывы ({product.reviewsCount})
+          Отзывы ({product.reviews_count})
         </h2>
         <div className="bg-white border border-gray-200 rounded-2xl p-6">
           <div className="text-center py-8">
@@ -215,44 +204,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
           </div>
         </div>
       </section>
-
-      {/* Похожие товары */}
-      {relatedProducts.length > 0 && (
-        <section className="mt-12">
-          <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">
-            Похожие товары
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {relatedProducts.map((item) => (
-              <a
-                key={item.id}
-                href={`/product/${item.id}`}
-                className="group bg-white border border-gray-200 rounded-2xl p-3 hover:shadow-md transition-shadow"
-              >
-                <div className="relative aspect-square mb-3">
-                  <Image
-                    src={item.image}
-                    alt={item.title}
-                    fill
-                    className="object-contain"
-                    sizes="(max-width: 768px) 50vw, 25vw"
-                  />
-                </div>
-                <p className="text-sm text-gray-900 line-clamp-2 font-medium group-hover:text-[#7000FF] transition-colors">
-                  {item.title}
-                </p>
-                <div className="mt-2 flex items-center gap-1 text-sm">
-                  <Star size={14} className="fill-yellow-400 text-yellow-400" />
-                  <span className="text-gray-700">{item.rating}</span>
-                </div>
-                <p className="mt-1 font-semibold text-gray-900">
-                  {item.price.toLocaleString()} сум
-                </p>
-              </a>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }

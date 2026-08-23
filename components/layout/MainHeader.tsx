@@ -1,23 +1,51 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import {
-  Menu,
-  X,
-  Search,
-  User,
-  Heart,
-  ShoppingBag,
-  Sofa,
-  Tent,
-  Monitor,
-  WashingMachine,
-  Shirt,
-} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { fetchCategories } from "@/lib/api";
+import { Menu, X, Search, User, Heart, ShoppingBag, Boxes } from "lucide-react";
 
 export default function MainHeader() {
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categories, setCategories] = useState<
+    { id: number; name: string; slug: string }[]
+  >([]);
+  const router = useRouter();
+
+  // Загружаем категории из backend для каталога
+  useEffect(() => {
+    let ignore = false;
+    async function load() {
+      try {
+        const data = await fetchCategories();
+        if (!ignore) {
+          setCategories(
+            (data.results || []).map((c) => ({
+              id: c.id,
+              name: c.name,
+              slug: c.slug,
+            })),
+          );
+        }
+      } catch (error) {
+        console.error("Ошибка загрузки категорий:", error);
+      }
+    }
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    if (q) {
+      router.push(`/search?q=${encodeURIComponent(q)}`);
+    }
+  };
 
   return (
     <>
@@ -58,18 +86,26 @@ export default function MainHeader() {
           </div>
 
           {/* ПОЛЕ ПОИСКА (На десктопе в центре, на мобильных во 2-й строчке) */}
-          <div className="w-full flex-1 flex items-center">
+          <form
+            onSubmit={handleSearch}
+            className="w-full flex-1 flex items-center"
+          >
             <div className="relative w-full flex items-center">
               <input
                 type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Искать товары и категории"
                 className="w-full h-[40px] md:h-[44px] pl-4 pr-12 rounded-l-lg border border-r-0 border-gray-200 focus:outline-none focus:border-[#7000FF] text-[14px] transition-colors"
               />
-              <button className="h-[40px] md:h-[44px] px-5 bg-[#F2F4F7] text-gray-600 rounded-r-lg border border-l-0 border-gray-200 hover:bg-[#E5E7EB] transition-colors flex items-center justify-center shrink-0">
+              <button
+                type="submit"
+                className="h-[40px] md:h-[44px] px-5 bg-[#F2F4F7] text-gray-600 rounded-r-lg border border-l-0 border-gray-200 hover:bg-[#E5E7EB] transition-colors flex items-center justify-center shrink-0"
+              >
                 <Search size={18} />
               </button>
             </div>
-          </div>
+          </form>
 
           {/* ПРАВАЯ ЧАСТЬ (Только для ДЕСКТОПА md+) */}
           <div className="hidden md:flex items-center gap-6 shrink-0">
@@ -123,41 +159,26 @@ export default function MainHeader() {
 
             {/* Элементы каталога */}
             <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-              <li className="flex items-center gap-3 p-3.5 bg-gray-50 rounded-xl hover:bg-[#F0F0FF] hover:text-[#7000FF] transition-colors cursor-pointer group">
-                <Sofa
-                  size={22}
-                  className="text-gray-400 group-hover:text-[#7000FF]"
-                />
-                <span className="font-medium text-[15px]">Мебель</span>
-              </li>
-              <li className="flex items-center gap-3 p-3.5 bg-gray-50 rounded-xl hover:bg-[#F0F0FF] hover:text-[#7000FF] transition-colors cursor-pointer group">
-                <Tent
-                  size={22}
-                  className="text-gray-400 group-hover:text-[#7000FF]"
-                />
-                <span className="font-medium text-[15px]">Туризм и спорт</span>
-              </li>
-              <li className="flex items-center gap-3 p-3.5 bg-gray-50 rounded-xl hover:bg-[#F0F0FF] hover:text-[#7000FF] transition-colors cursor-pointer group">
-                <Monitor
-                  size={22}
-                  className="text-gray-400 group-hover:text-[#7000FF]"
-                />
-                <span className="font-medium text-[15px]">Электроника</span>
-              </li>
-              <li className="flex items-center gap-3 p-3.5 bg-gray-50 rounded-xl hover:bg-[#F0F0FF] hover:text-[#7000FF] transition-colors cursor-pointer group">
-                <WashingMachine
-                  size={22}
-                  className="text-gray-400 group-hover:text-[#7000FF]"
-                />
-                <span className="font-medium text-[15px]">Бытовая техника</span>
-              </li>
-              <li className="flex items-center gap-3 p-3.5 bg-gray-50 rounded-xl hover:bg-[#F0F0FF] hover:text-[#7000FF] transition-colors cursor-pointer group">
-                <Shirt
-                  size={22}
-                  className="text-gray-400 group-hover:text-[#7000FF]"
-                />
-                <span className="font-medium text-[15px]">Одежда</span>
-              </li>
+              {categories.length > 0 ? (
+                categories.map((cat) => (
+                  <li key={cat.id}>
+                    <Link
+                      href={`/search?category=${cat.id}`}
+                      className="flex items-center gap-3 p-3.5 bg-gray-50 rounded-xl hover:bg-[#F0F0FF] hover:text-[#7000FF] transition-colors cursor-pointer group"
+                    >
+                      <Boxes
+                        size={22}
+                        className="text-gray-400 group-hover:text-[#7000FF]"
+                      />
+                      <span className="font-medium text-[15px]">
+                        {cat.name}
+                      </span>
+                    </Link>
+                  </li>
+                ))
+              ) : (
+                <li className="text-gray-500 p-3.5">Загрузка категорий…</li>
+              )}
             </ul>
           </div>
         </div>

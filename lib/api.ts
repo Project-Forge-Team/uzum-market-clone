@@ -24,6 +24,7 @@ export async function fetchProducts(params?: {
 
   const res = await fetch(`${API_URL}/products/?${query.toString()}`, {
     headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(60000),
   });
   if (!res.ok) return { count: 0, next: null, previous: null, results: [] };
   return res.json();
@@ -34,6 +35,7 @@ export async function fetchProduct(
 ): Promise<Product | null> {
   const res = await fetch(`${API_URL}/products/${id}/`, {
     headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(60000),
   });
   if (!res.ok) return null; // или throw, обработаете выше
   return res.json();
@@ -56,6 +58,7 @@ export interface CategoryListResponse {
 export async function fetchCategories(): Promise<CategoryListResponse> {
   const res = await fetch(`${API_URL}/categories/`, {
     headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(60000),
   });
   if (!res.ok) return { count: 0, next: null, previous: null, results: [] };
   return res.json();
@@ -67,6 +70,7 @@ export async function fetchCategory(
 ): Promise<Category | null> {
   const res = await fetch(`${API_URL}/categories/${id}/`, {
     headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(60000),
   });
   if (!res.ok) return null;
   return res.json();
@@ -90,6 +94,7 @@ export interface SellerListResponse {
 export async function fetchSellers(): Promise<SellerListResponse> {
   const res = await fetch(`${API_URL}/sellers/`, {
     headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(60000),
   });
   if (!res.ok) return { count: 0, next: null, previous: null, results: [] };
   return res.json();

@@ -31,4 +31,7 @@ jobs:
         run: npm run lint --if-present
 
       - name: Build application
+        # Пробрасываем переменные окружения в шаг сборки
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
         run: npm run build

@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation"; // добавили usePathname
 import { fetchCategories } from "@/lib/api";
+import { authService } from "@/lib/auth-service"; // Импортируем наш сервис из Дня 1
 import { Menu, X, Search, User, Heart, ShoppingBag, Boxes } from "lucide-react";
 
 export default function MainHeader() {
@@ -12,7 +13,12 @@ export default function MainHeader() {
   const [categories, setCategories] = useState<
     { id: number; name: string; slug: string }[]
   >([]);
+  
+  // Состояние авторизации
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
   const router = useRouter();
+  const pathname = usePathname();
 
   // Загружаем категории из backend для каталога
   useEffect(() => {
@@ -39,6 +45,11 @@ export default function MainHeader() {
     };
   }, []);
 
+  // Проверяем авторизацию при монтировании и при смене маршрута
+  useEffect(() => {
+    setIsAuthenticated(authService.isAuthenticated());
+  }, [pathname]); // Перепроверяем при каждом переходе по страницам
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const q = searchQuery.trim();
@@ -51,9 +62,9 @@ export default function MainHeader() {
     <>
       <header className="bg-white border-b border-gray-100 relative z-20">
         <div className="w-full max-w-[1240px] mx-auto px-4 py-3 md:py-4 flex flex-col md:flex-row items-center gap-3 md:gap-6">
-          {/* ВЕРХНЯЯ СТРОКА (Лого + Каталог + Иконки на мобильном) */}
+          
+          {/* ВЕРХНЯЯ СТРОКА */}
           <div className="w-full md:w-auto flex items-center justify-between gap-3 shrink-0">
-            {/* Логотип */}
             <Link href="/" className="flex items-center">
               <img
                 src="/headLogo.png"
@@ -62,13 +73,12 @@ export default function MainHeader() {
               />
             </Link>
 
-            {/* Кнопка Каталог (Скрывается на совсем маленьких экранах или адаптируется) */}
-
-            {/* Иконки действий на МОБИЛЬНЫХ (выносятся в верхнюю строку) */}
+            {/* Иконки действий на МОБИЛЬНЫХ */}
             <div className="flex md:hidden items-center gap-3">
-              <a href="#" className="p-1.5 text-gray-700 hover:text-[#7000FF]">
+              {/* Мобильная кнопка профиля/входа */}
+              <Link href="/profile" className="p-1.5 text-gray-700 hover:text-[#7000FF]">
                 <User size={22} />
-              </a>
+              </Link>
               <a href="#" className="p-1.5 text-gray-700 hover:text-[#7000FF]">
                 <Heart size={22} />
               </a>
@@ -76,6 +86,7 @@ export default function MainHeader() {
                 <ShoppingBag size={22} />
               </a>
             </div>
+            
             <button
               onClick={() => setIsCatalogOpen(!isCatalogOpen)}
               className="flex items-center gap-2 bg-[#F0F0FF] text-[#7000FF] px-4 py-2.5 rounded-lg font-medium hover:bg-[#E2E0FF] transition-colors shrink-0"
@@ -85,7 +96,7 @@ export default function MainHeader() {
             </button>
           </div>
 
-          {/* ПОЛЕ ПОИСКА (На десктопе в центре, на мобильных во 2-й строчке) */}
+          {/* ПОЛЕ ПОИСКА */}
           <form
             onSubmit={handleSearch}
             className="w-full flex-1 flex items-center"
@@ -109,13 +120,19 @@ export default function MainHeader() {
 
           {/* ПРАВАЯ ЧАСТЬ (Только для ДЕСКТОПА md+) */}
           <div className="hidden md:flex items-center gap-6 shrink-0">
-            <a
-              href="#"
+            
+            {/* === ИЗМЕНЕННАЯ КНОПКА ПРОФИЛЯ / ВХОДА === */}
+            <Link
+              href="/profile"
               className="flex items-center gap-2 text-gray-700 hover:text-[#7000FF] transition-colors"
             >
               <User size={22} />
-              <span className="font-medium text-[14px]">Shahzod</span>
-            </a>
+              <span className="font-medium text-[14px]">
+                {isAuthenticated ? "Профиль" : "Войти"}
+              </span>
+            </Link>
+            {/* ========================================= */}
+
             <a
               href="#"
               className="flex items-center gap-2 text-gray-700 hover:text-[#7000FF] transition-colors"
@@ -134,7 +151,7 @@ export default function MainHeader() {
         </div>
       </header>
 
-      {/* МОДАЛЬНОЕ ОКНО / ШТОРКА КАТАЛОГА */}
+      {/* МОДАЛЬНОЕ ОКНО / ШТОРКА КАТАЛОГА (тут всё без изменений) */}
       {isCatalogOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex justify-center items-start pt-0 md:pt-[110px]"
@@ -144,7 +161,6 @@ export default function MainHeader() {
             className="bg-white w-full max-w-[1240px] h-full md:h-auto md:max-h-[80vh] md:rounded-2xl shadow-xl p-5 md:p-8 overflow-y-auto relative animate-in fade-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Кнопка закрытия */}
             <div className="flex items-center justify-between mb-6 pb-3 border-b border-gray-100 md:border-none">
               <h2 className="text-xl font-bold text-gray-900">
                 Каталог товаров
@@ -157,7 +173,6 @@ export default function MainHeader() {
               </button>
             </div>
 
-            {/* Элементы каталога */}
             <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
               {categories.length > 0 ? (
                 categories.map((cat) => (

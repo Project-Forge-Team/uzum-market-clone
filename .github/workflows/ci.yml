@@ -6,9 +6,19 @@ on:
   push:
     branches: [ main, master ]
 
+# Отменяем устаревшие запуски при новом коммите в тот же PR/ветку
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Минимально необходимые права для GITHUB_TOKEN
+permissions:
+  contents: read
+
 jobs:
   check-and-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -25,10 +35,12 @@ jobs:
 
       - name: Check TypeScript types
         run: npx tsc --noEmit
-        continue-on-error: false
 
       - name: Run Linter
         run: npm run lint --if-present
+
+      - name: Run tests
+        run: npm test --if-present
 
       - name: Build application
         # Пробрасываем переменные окружения в шаг сборки

@@ -27,7 +27,6 @@ export default function ProductPage() {
   useEffect(() => {
     // Убрали setLoading(true) отсюда!
     // Сбрасываем ошибки и продукт при смене ID
-    setError(false);
     
     // Оборачиваем в startTransition, чтобы React знал, что это обновление может быть прервано
     // и не блокировало UI. Это решает проблему "cascading renders".

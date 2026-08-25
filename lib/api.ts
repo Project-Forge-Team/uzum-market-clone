@@ -119,7 +119,7 @@ function handleSessionExpired() {
   if (typeof localStorage !== 'undefined') {
     localStorage.removeItem("uzum_user_name");
   }
-  
+
   // Проверяем, что мы в браузере, и не находимся уже на странице логина/регистрации
   if (typeof window !== 'undefined') {
     const currentPath = window.location.pathname;
@@ -137,7 +137,8 @@ function handleSessionExpired() {
  * Если refresh токен тоже невалиден — очищает сессию и выбрасывает на /login.
  */
 export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  let accessToken = authService.getAccessToken();
+  // Было: let accessToken = ...
+  const accessToken = authService.getAccessToken();
 
   const headers = new Headers(options.headers);
   if (accessToken) {
@@ -212,7 +213,7 @@ export async function fetchProducts(params?: FetchProductsParams): Promise<Produ
     const res = await fetchWithTimeout(`${API_URL}/products/?${query.toString()}`, {
       headers: { Accept: "application/json" },
     }, 60000); // 60 сек на просыпание Render
-    
+
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (error) {
@@ -227,7 +228,7 @@ export async function fetchProduct(id: number | string): Promise<Product | null>
     const res = await fetchWithTimeout(`${API_URL}/products/${id}/`, {
       headers: { Accept: "application/json" },
     }, 60000);
-    
+
     if (!res.ok) return null;
     return await res.json();
   } catch (error) {
@@ -242,7 +243,7 @@ export async function fetchCategories(): Promise<CategoryListResponse> {
     const res = await fetchWithTimeout(`${API_URL}/categories/`, {
       headers: { Accept: "application/json" },
     }, 60000);
-    
+
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (error) {
@@ -257,7 +258,7 @@ export async function fetchCategory(id: number | string): Promise<Category | nul
     const res = await fetchWithTimeout(`${API_URL}/categories/${id}/`, {
       headers: { Accept: "application/json" },
     }, 60000);
-    
+
     if (!res.ok) return null;
     return await res.json();
   } catch (error) {
@@ -272,7 +273,7 @@ export async function fetchSellers(): Promise<SellerListResponse> {
     const res = await fetchWithTimeout(`${API_URL}/sellers/`, {
       headers: { Accept: "application/json" },
     }, 60000);
-    
+
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (error) {

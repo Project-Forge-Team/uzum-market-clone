@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useTransition } from "react"; // Добавили useTransition
 import { useParams } from "next/navigation";
 import { fetchProduct } from "@/lib/api";
 import type { Product } from "@/types/product";
@@ -21,25 +21,39 @@ export default function ProductPage() {
   const id = params.id as string;
 
   const [product, setProduct] = useState<Product | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [isPending, startTransition] = useTransition(); // Используем transition для плавности
 
   useEffect(() => {
-    setLoading(true);
+    // Убрали setLoading(true) отсюда!
+    // Сбрасываем ошибки и продукт при смене ID
     setError(false);
-    fetchProduct(id)
-      .then((data) => {
-        if (!data) setError(true);
-        setProduct(data);
-        setLoading(false);
-      })
-      .catch(() => {
-        setError(true);
-        setLoading(false);
-      });
+    
+    // Оборачиваем в startTransition, чтобы React знал, что это обновление может быть прервано
+    // и не блокировало UI. Это решает проблему "cascading renders".
+    startTransition(() => {
+      fetchProduct(id)
+        .then((data) => {
+          if (!data) {
+            setError(true);
+            setProduct(null);
+          } else {
+            setProduct(data);
+          }
+        })
+        .catch(() => {
+          setError(true);
+          setProduct(null);
+        });
+    });
   }, [id]);
 
-  if (loading) {
+  // Теперь loading - это isPending ИЛИ (продукта нет и ошибки нет при первом рендере)
+  // Но isPending не работает на самый первый маунт. 
+  // Поэтому для первого рендера проверяем product === null.
+  const isLoading = isPending || (product === null && !error);
+
+  if (isLoading) {
     return (
       <div className="max-w-6xl mx-auto p-4 md:p-6">
         <div className="animate-pulse">

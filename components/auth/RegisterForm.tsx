@@ -52,8 +52,9 @@ export default function RegisterForm() {
 
       router.push("/profile");
       router.refresh();
-    } catch (err: any) {
-      setServerError(err.message);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Ошибка при регистрации";
+      setServerError(errorMessage);
     }
   };
   return (

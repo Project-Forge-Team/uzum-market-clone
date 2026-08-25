@@ -23,7 +23,7 @@ export default function LoginForm() {
   const searchParams = useSearchParams();
   // Получаем адрес, куда юзер хотел попасть (например, /profile)
   const redirect = searchParams.get("redirect") || "/";
-  
+
   const [serverError, setServerError] = useState<string | null>(null);
 
   // 2. Инициализация формы
@@ -41,16 +41,17 @@ export default function LoginForm() {
     try {
       // Стучимся на реальный бэкенд
       const response = await loginUser(data);
-      
+
       // Сохраняем настоящие JWT токены в куки
       authService.saveTokens(response.access, response.refresh);
-      
+
       // Перенаправляем туда, откуда пришел (или на главную)
       router.push(redirect);
       router.refresh(); // Обновляем Header, чтобы появилось "Профиль"
-    } catch (err: any) {
-      // Показываем ошибку от бэкенда (например, "No active account...")
-      setServerError(err.message);
+      // Было: } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Ошибка при входе";
+      setServerError(errorMessage);
     }
   };
 
@@ -66,8 +67,8 @@ export default function LoginForm() {
 
       {serverError && (
         <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm text-center border border-red-100">
-          {serverError === "No active account found with the given credentials" 
-            ? "Неверный email или пароль" 
+          {serverError === "No active account found with the given credentials"
+            ? "Неверный email или пароль"
             : serverError}
         </div>
       )}
@@ -113,8 +114,8 @@ export default function LoginForm() {
       <div className="mt-6 text-center">
         <p className="text-sm text-gray-500">
           Нет аккаунта?{" "}
-          <Link 
-            href="/register" 
+          <Link
+            href="/register"
             className="text-[#7000FF] font-medium hover:underline"
           >
             Зарегистрироваться

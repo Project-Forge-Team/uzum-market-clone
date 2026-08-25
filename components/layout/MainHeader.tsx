@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation"; // добавили usePathname
-import { fetchCategories } from "@/lib/api";
-import { authService } from "@/lib/auth-service"; // Импортируем наш сервис из Дня 1
+import { useRouter, usePathname } from "next/navigation";
+import { fetchCategories, fetchMe } from "@/lib/api";
+import { authService } from "@/lib/auth-service";
 import { Menu, X, Search, User, Heart, ShoppingBag, Boxes } from "lucide-react";
+
 
 export default function MainHeader() {
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
@@ -13,14 +14,15 @@ export default function MainHeader() {
   const [categories, setCategories] = useState<
     { id: number; name: string; slug: string }[]
   >([]);
-  
-  // Состояние авторизации
+
+  // Состояния авторизации и имени пользователя
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  
+  const [userName, setUserName] = useState<string | null>(null);
+
   const router = useRouter();
   const pathname = usePathname();
 
-  // Загружаем категории из backend для каталога
+  // 1. Загружаем категории из backend для каталога
   useEffect(() => {
     let ignore = false;
     async function load() {
@@ -45,10 +47,45 @@ export default function MainHeader() {
     };
   }, []);
 
-  // Проверяем авторизацию при монтировании и при смене маршрута
+  // 2. Проверяем авторизацию и получаем имя при монтировании и смене маршрута
+  // В импортах MainHeader.tsx добавь:
+
+
+  // ... внутри компонента ...
+
   useEffect(() => {
-    setIsAuthenticated(authService.isAuthenticated());
-  }, [pathname]); // Перепроверяем при каждом переходе по страницам
+    const checkAuthAndUser = async () => {
+      const isAuth = authService.isAuthenticated();
+      setIsAuthenticated(isAuth);
+
+      if (isAuth) {
+        // Мгновенно показываем имя из кэша
+        const cachedName = localStorage.getItem("uzum_user_name");
+        if (cachedName) setUserName(cachedName);
+
+        try {
+          // Вызываем нашу умную функцию! 
+          // Если access протух, она сама обновит его через /auth/refresh/ и вернет данные.
+          const userData = await fetchMe();
+
+          if (userData && userData.first_name) {
+            setUserName(userData.first_name);
+            localStorage.setItem("uzum_user_name", userData.first_name);
+          } else {
+            // Если fetchMe вернул null (например, refresh тоже протух и куки очистились)
+            setIsAuthenticated(false);
+            setUserName(null);
+          }
+        } catch (error) {
+          console.error("Ошибка проверки сессии:", error);
+        }
+      } else {
+        setUserName(null);
+      }
+    };
+
+    checkAuthAndUser();
+  }, [pathname]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,11 +95,14 @@ export default function MainHeader() {
     }
   };
 
+  // Формируем текст для кнопки профиля
+  const profileText = isAuthenticated ? (userName || "Профиль") : "Войти";
+
   return (
     <>
       <header className="bg-white border-b border-gray-100 relative z-20">
         <div className="w-full max-w-[1240px] mx-auto px-4 py-3 md:py-4 flex flex-col md:flex-row items-center gap-3 md:gap-6">
-          
+
           {/* ВЕРХНЯЯ СТРОКА */}
           <div className="w-full md:w-auto flex items-center justify-between gap-3 shrink-0">
             <Link href="/" className="flex items-center">
@@ -75,9 +115,14 @@ export default function MainHeader() {
 
             {/* Иконки действий на МОБИЛЬНЫХ */}
             <div className="flex md:hidden items-center gap-3">
-              {/* Мобильная кнопка профиля/входа */}
-              <Link href="/profile" className="p-1.5 text-gray-700 hover:text-[#7000FF]">
+              {/* Мобильная кнопка профиля/входа с именем */}
+              <Link href="/profile" className="flex items-center gap-1.5 p-1.5 text-gray-700 hover:text-[#7000FF]">
                 <User size={22} />
+                {isAuthenticated && (
+                  <span className="text-sm font-medium max-w-[80px] truncate hidden sm:inline">
+                    {userName || ""}
+                  </span>
+                )}
               </Link>
               <a href="#" className="p-1.5 text-gray-700 hover:text-[#7000FF]">
                 <Heart size={22} />
@@ -86,7 +131,7 @@ export default function MainHeader() {
                 <ShoppingBag size={22} />
               </a>
             </div>
-            
+
             <button
               onClick={() => setIsCatalogOpen(!isCatalogOpen)}
               className="flex items-center gap-2 bg-[#F0F0FF] text-[#7000FF] px-4 py-2.5 rounded-lg font-medium hover:bg-[#E2E0FF] transition-colors shrink-0"
@@ -120,15 +165,15 @@ export default function MainHeader() {
 
           {/* ПРАВАЯ ЧАСТЬ (Только для ДЕСКТОПА md+) */}
           <div className="hidden md:flex items-center gap-6 shrink-0">
-            
-            {/* === ИЗМЕНЕННАЯ КНОПКА ПРОФИЛЯ / ВХОДА === */}
+
+            {/* === КНОПКА ПРОФИЛЯ / ВХОДА С ИМЕНЕМ === */}
             <Link
               href="/profile"
               className="flex items-center gap-2 text-gray-700 hover:text-[#7000FF] transition-colors"
             >
               <User size={22} />
-              <span className="font-medium text-[14px]">
-                {isAuthenticated ? "Профиль" : "Войти"}
+              <span className="font-medium text-[14px] max-w-[120px] truncate">
+                {profileText}
               </span>
             </Link>
             {/* ========================================= */}
@@ -151,7 +196,7 @@ export default function MainHeader() {
         </div>
       </header>
 
-      {/* МОДАЛЬНОЕ ОКНО / ШТОРКА КАТАЛОГА (тут всё без изменений) */}
+      {/* МОДАЛЬНОЕ ОКНО / ШТОРКА КАТАЛОГА */}
       {isCatalogOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex justify-center items-start pt-0 md:pt-[110px]"
@@ -178,7 +223,7 @@ export default function MainHeader() {
                 categories.map((cat) => (
                   <li key={cat.id}>
                     <Link
-                      href={`/search?category=${cat.id}`}
+                      href={`/catalog/${cat.slug}`}
                       className="flex items-center gap-3 p-3.5 bg-gray-50 rounded-xl hover:bg-[#F0F0FF] hover:text-[#7000FF] transition-colors cursor-pointer group"
                     >
                       <Boxes

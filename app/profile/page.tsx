@@ -17,11 +17,6 @@ export default function ProfilePage() {
             </div>
 
             <div className="bg-green-50 border border-green-200 p-6 rounded-2xl flex items-start gap-4">
-                <div className="bg-green-100 p-2 rounded-full">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                </div>
                 <div>
                     <h2 className="text-lg font-bold text-green-800">Доступ разрешен</h2>
                     <p className="text-green-700 mt-1">

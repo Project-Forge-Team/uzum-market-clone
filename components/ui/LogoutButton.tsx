@@ -7,9 +7,13 @@ export default function LogoutButton() {
   const router = useRouter();
 
   const handleLogout = () => {
-    authService.clearTokens(); // Удаляем куки
-    router.push("/"); // На главную
-    router.refresh(); // Обновляем состояние серверных компонентов
+    authService.clearTokens(); 
+    
+    // === ОЧИЩАЕМ ИМЯ ===
+    localStorage.removeItem("uzum_user_name");
+    
+    router.push("/");
+    router.refresh();
   };
 
   return (

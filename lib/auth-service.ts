@@ -22,6 +22,11 @@ export const authService = {
     return !!Cookies.get(ACCESS_TOKEN_KEY);
   },
 
+  // === ВОТ ЭТА СТРОКА У ТЕБЯ ПРОПУЩЕНА! ДОБАВЬ ЕЁ ===
+  getRefreshToken: () => {
+    return Cookies.get(REFRESH_TOKEN_KEY);
+  },
+
   // Очищаем токены при выходе (Logout)
   clearTokens: () => {
     Cookies.remove(ACCESS_TOKEN_KEY, { path: "/" });

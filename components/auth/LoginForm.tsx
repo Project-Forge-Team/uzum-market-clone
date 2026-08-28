@@ -7,8 +7,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
 
-import { loginUser } from "@/lib/api";
-import { authService } from "@/lib/auth-service";
+import { loginUser, fetchMe } from "@/lib/api";
+import { authService, notifyAuthChange } from "@/lib/auth-service";
 
 // 1. Валидация для логина
 const loginSchema = z.object({
@@ -39,15 +39,22 @@ export default function LoginForm() {
   const onSubmit = async (data: LoginFormValues) => {
     setServerError(null);
     try {
-      // Стучимся на реальный бэкенд
       const response = await loginUser(data);
-
-      // Сохраняем настоящие JWT токены в куки
       authService.saveTokens(response.access, response.refresh);
 
-      // Перенаправляем туда, откуда пришел (или на главную)
+      // Подтягиваем имя сразу после логина (раньше ждали fetchMe в header)
+      try {
+        const me = await fetchMe();
+        if (me?.first_name) {
+          localStorage.setItem("uzum_user_name", me.first_name);
+        }
+      } catch {
+        // имя подтянется при следующем checkAuth
+      }
+
+      notifyAuthChange();
       router.push(redirect);
-      router.refresh(); // Обновляем Header, чтобы появилось "Профиль"
+      router.refresh();
       // Было: } catch (err: any) {
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Ошибка при входе";

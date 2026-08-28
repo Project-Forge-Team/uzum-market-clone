@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { fetchCategories, fetchMe } from "@/lib/api";
-import { authService } from "@/lib/auth-service";
+import { authService, AUTH_CHANGE_EVENT } from "@/lib/auth-service";
 import { Menu, X, Search, User, Heart, ShoppingBag, Boxes } from "lucide-react";
 
+const CATEGORIES_TTL_MS = 60 * 60 * 1000; // 1 час
+let categoriesCache:
+  | { data: { id: number; name: string; slug: string }[]; at: number }
+  | null = null;
 
 export default function MainHeader() {
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
@@ -15,77 +19,94 @@ export default function MainHeader() {
     { id: number; name: string; slug: string }[]
   >([]);
 
-  // Состояния авторизации и имени пользователя
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
 
   const router = useRouter();
-  const pathname = usePathname();
 
-  // 1. Загружаем категории из backend для каталога
+  // Категории — lazy: только при открытии каталога (+ in-memory cache)
   useEffect(() => {
+    if (!isCatalogOpen) return;
+    if (categories.length > 0) return;
+
     let ignore = false;
+
     async function load() {
+      const now = Date.now();
+      if (categoriesCache && now - categoriesCache.at < CATEGORIES_TTL_MS) {
+        if (!ignore) setCategories(categoriesCache.data);
+        return;
+      }
+
       try {
         const data = await fetchCategories();
-        if (!ignore) {
-          setCategories(
-            (data.results || []).map((c) => ({
-              id: c.id,
-              name: c.name,
-              slug: c.slug,
-            })),
-          );
-        }
+        const mapped = (data.results || []).map((c) => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+        }));
+        categoriesCache = { data: mapped, at: Date.now() };
+        if (!ignore) setCategories(mapped);
       } catch (error) {
         console.error("Ошибка загрузки категорий:", error);
       }
     }
+
     load();
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [isCatalogOpen, categories.length]);
 
-  // 2. Проверяем авторизацию и получаем имя при монтировании и смене маршрута
-  // В импортах MainHeader.tsx добавь:
+  // Профиль: один раз при mount + по событию login/logout (НЕ на каждый pathname)
+  const checkAuthAndUser = useCallback(async () => {
+    const isAuth = authService.isAuthenticated();
+    setIsAuthenticated(isAuth);
 
+    if (!isAuth) {
+      setUserName(null);
+      return;
+    }
 
-  // ... внутри компонента ...
+    const cachedName = localStorage.getItem("uzum_user_name");
+    if (cachedName) setUserName(cachedName);
 
-  useEffect(() => {
-    const checkAuthAndUser = async () => {
-      const isAuth = authService.isAuthenticated();
-      setIsAuthenticated(isAuth);
+    // Если имя уже в кэше — не дёргаем /auth/me лишний раз
+    if (cachedName && authService.getAccessToken()) {
+      return;
+    }
 
-      if (isAuth) {
-        // Мгновенно показываем имя из кэша
-        const cachedName = localStorage.getItem("uzum_user_name");
-        if (cachedName) setUserName(cachedName);
-
-        try {
-          // Вызываем нашу умную функцию! 
-          // Если access протух, она сама обновит его через /auth/refresh/ и вернет данные.
-          const userData = await fetchMe();
-
-          if (userData && userData.first_name) {
-            setUserName(userData.first_name);
-            localStorage.setItem("uzum_user_name", userData.first_name);
-          } else {
-            // Если fetchMe вернул null (например, refresh тоже протух и куки очистились)
-            setIsAuthenticated(false);
-            setUserName(null);
-          }
-        } catch (error) {
-          console.error("Ошибка проверки сессии:", error);
-        }
-      } else {
+    try {
+      const userData = await fetchMe();
+      if (userData?.first_name) {
+        setUserName(userData.first_name);
+        localStorage.setItem("uzum_user_name", userData.first_name);
+        setIsAuthenticated(true);
+      } else if (!authService.isAuthenticated()) {
+        setIsAuthenticated(false);
         setUserName(null);
       }
+    } catch (error) {
+      console.error("Ошибка проверки сессии:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkAuthAndUser();
+
+    const onAuthChange = () => {
+      checkAuthAndUser();
     };
 
-    checkAuthAndUser();
-  }, [pathname]);
+    window.addEventListener(AUTH_CHANGE_EVENT, onAuthChange);
+    // Синхронизация между вкладками
+    window.addEventListener("storage", onAuthChange);
+
+    return () => {
+      window.removeEventListener(AUTH_CHANGE_EVENT, onAuthChange);
+      window.removeEventListener("storage", onAuthChange);
+    };
+  }, [checkAuthAndUser]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,15 +116,12 @@ export default function MainHeader() {
     }
   };
 
-  // Формируем текст для кнопки профиля
-  const profileText = isAuthenticated ? (userName || "Профиль") : "Войти";
+  const profileText = isAuthenticated ? userName || "Профиль" : "Войти";
 
   return (
     <>
       <header className="bg-white border-b border-gray-100 relative z-20">
         <div className="w-full max-w-[1240px] mx-auto px-4 py-3 md:py-4 flex flex-col md:flex-row items-center gap-3 md:gap-6">
-
-          {/* ВЕРХНЯЯ СТРОКА */}
           <div className="w-full md:w-auto flex items-center justify-between gap-3 shrink-0">
             <Link href="/" className="flex items-center">
               <img
@@ -113,10 +131,11 @@ export default function MainHeader() {
               />
             </Link>
 
-            {/* Иконки действий на МОБИЛЬНЫХ */}
             <div className="flex md:hidden items-center gap-3">
-              {/* Мобильная кнопка профиля/входа с именем */}
-              <Link href="/profile" className="flex items-center gap-1.5 p-1.5 text-gray-700 hover:text-[#7000FF]">
+              <Link
+                href="/profile"
+                className="flex items-center gap-1.5 p-1.5 text-gray-700 hover:text-[#7000FF]"
+              >
                 <User size={22} />
                 {isAuthenticated && (
                   <span className="text-sm font-medium max-w-[80px] truncate hidden sm:inline">
@@ -141,7 +160,6 @@ export default function MainHeader() {
             </button>
           </div>
 
-          {/* ПОЛЕ ПОИСКА */}
           <form
             onSubmit={handleSearch}
             className="w-full flex-1 flex items-center"
@@ -163,10 +181,7 @@ export default function MainHeader() {
             </div>
           </form>
 
-          {/* ПРАВАЯ ЧАСТЬ (Только для ДЕСКТОПА md+) */}
           <div className="hidden md:flex items-center gap-6 shrink-0">
-
-            {/* === КНОПКА ПРОФИЛЯ / ВХОДА С ИМЕНЕМ === */}
             <Link
               href="/profile"
               className="flex items-center gap-2 text-gray-700 hover:text-[#7000FF] transition-colors"
@@ -176,7 +191,6 @@ export default function MainHeader() {
                 {profileText}
               </span>
             </Link>
-            {/* ========================================= */}
 
             <a
               href="#"
@@ -196,7 +210,6 @@ export default function MainHeader() {
         </div>
       </header>
 
-      {/* МОДАЛЬНОЕ ОКНО / ШТОРКА КАТАЛОГА */}
       {isCatalogOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex justify-center items-start pt-0 md:pt-[110px]"
@@ -223,7 +236,8 @@ export default function MainHeader() {
                 categories.map((cat) => (
                   <li key={cat.id}>
                     <Link
-                      href={`/catalog/${cat.slug}`}
+                      href={`/search?category=${cat.id}`}
+                      onClick={() => setIsCatalogOpen(false)}
                       className="flex items-center gap-3 p-3.5 bg-gray-50 rounded-xl hover:bg-[#F0F0FF] hover:text-[#7000FF] transition-colors cursor-pointer group"
                     >
                       <Boxes

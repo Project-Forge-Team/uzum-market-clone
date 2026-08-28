@@ -1,17 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { authService } from "@/lib/auth-service";
+import { authService, notifyAuthChange } from "@/lib/auth-service";
 
 export default function LogoutButton() {
   const router = useRouter();
 
   const handleLogout = () => {
-    authService.clearTokens(); 
-    
-    // === ОЧИЩАЕМ ИМЯ ===
+    authService.clearTokens();
     localStorage.removeItem("uzum_user_name");
-    
+    notifyAuthChange();
     router.push("/");
     router.refresh();
   };

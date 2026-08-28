@@ -1,8 +1,9 @@
 import { Product } from "@/types/product";
 import { authService } from "@/lib/auth-service";
 
-// Используем переменную окружения, fallback на Render (т.к. локальный бэк может быть выключен)
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://backend-uzum-market.onrender.com/api";
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://backend-uzum-market.onrender.com/api";
 
 // ==========================================
 // 1. ТИПЫ И ИНТЕРФЕЙСЫ
@@ -15,19 +16,17 @@ export interface PaginatedResponse<T> {
   results: T[];
 }
 
-// --- Товары ---
 export type ProductListResponse = PaginatedResponse<Product>;
 
 export interface FetchProductsParams {
   page?: number;
   page_size?: number;
-  category?: string; // В API (2).md параметр называется category (integer)
-  seller?: string;   // В API (2).md параметр называется seller (integer)
+  category?: string;
+  seller?: string;
   search?: string;
-  ordering?: string; // price, rating, created_at (с - для убывания)
+  ordering?: string;
 }
 
-// --- Категории ---
 export interface Category {
   id: number;
   name: string;
@@ -35,7 +34,6 @@ export interface Category {
 }
 export type CategoryListResponse = PaginatedResponse<Category>;
 
-// --- Продавцы ---
 export interface Seller {
   id: number;
   name: string;
@@ -44,7 +42,6 @@ export interface Seller {
 }
 export type SellerListResponse = PaginatedResponse<Seller>;
 
-// --- Авторизация ---
 export interface RegisterPayload {
   email: string;
   password: string;
@@ -59,7 +56,6 @@ export interface LoginPayload {
   password: string;
 }
 
-// Ответ при регистрации (содержит user)
 export interface RegisterResponse {
   user: {
     id: number;
@@ -72,13 +68,11 @@ export interface RegisterResponse {
   access: string;
 }
 
-// Ответ при логине и обновлении токена (НЕ содержит user, согласно API (2).md)
 export interface AuthTokensResponse {
   refresh: string;
   access: string;
 }
 
-// Профиль пользователя (GET /auth/me/)
 export interface UserProfile {
   id: number;
   email: string;
@@ -91,56 +85,117 @@ export interface UserProfile {
 // 2. БАЗОВЫЕ ФУНКЦИИ FETCH
 // ==========================================
 
-/** Fetch с таймаутом (защита от вечно висящих запросов к Render) */
+type FetchOptions = RequestInit & {
+  /** Next.js ISR (только на сервере) */
+  next?: { revalidate?: number | false; tags?: string[] };
+  /** Отключить next/fetch cache */
+  cache?: RequestCache;
+};
+
+/** Fetch с таймаутом; сохраняет внешний AbortSignal */
 async function fetchWithTimeout(
   url: string,
-  options: RequestInit = {},
-  timeoutMs = 30000 // 30 секунд
+  options: FetchOptions = {},
+  timeoutMs = 15000,
 ): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const timeoutSignal =
+    typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+      ? AbortSignal.timeout(timeoutMs)
+      : undefined;
 
-  try {
-    const res = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    return res;
-  } catch (err) {
-    clearTimeout(timeoutId);
-    throw err;
+  let signal: AbortSignal | undefined = options.signal ?? undefined;
+
+  if (timeoutSignal && options.signal) {
+    const AnyAbort = AbortSignal as unknown as {
+      any?: (signals: AbortSignal[]) => AbortSignal;
+    };
+    signal = AnyAbort.any
+      ? AnyAbort.any([options.signal, timeoutSignal])
+      : timeoutSignal;
+  } else if (timeoutSignal) {
+    signal = timeoutSignal;
+  } else if (!options.signal) {
+    // Fallback для старых runtime без AbortSignal.timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeoutId);
+      return res;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      throw err;
+    }
   }
+
+  return fetch(url, { ...options, signal });
 }
 
-/** Вспомогательная функция для жесткого редиректа при потере сессии */
 function handleSessionExpired() {
   authService.clearTokens();
-  if (typeof localStorage !== 'undefined') {
+  if (typeof localStorage !== "undefined") {
     localStorage.removeItem("uzum_user_name");
   }
 
-  // Проверяем, что мы в браузере, и не находимся уже на странице логина/регистрации
-  if (typeof window !== 'undefined') {
+  if (typeof window !== "undefined") {
     const currentPath = window.location.pathname;
-    if (currentPath !== '/login' && currentPath !== '/register') {
-      // Мгновенный редирект с сохранением пути, куда юзер хотел попасть
-      window.location.href = `/login?redirect=${currentPath}`;
+    if (currentPath !== "/login" && currentPath !== "/register") {
+      window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
     }
   }
 }
 
-/** 
- * УМНЫЙ ЗАЩИЩЕННЫЙ FETCH (Refresh Token Flow)
- * Автоматически добавляет Bearer токен.
- * Если получает 401, тихо обновляет токены через /auth/refresh/ и повторяет запрос.
- * Если refresh токен тоже невалиден — очищает сессию и выбрасывает на /login.
+/** Один refresh на все параллельные 401 — без race condition */
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const refreshToken = authService.getRefreshToken();
+    if (!refreshToken) return null;
+
+    try {
+      const refreshRes = await fetchWithTimeout(
+        `${API_URL}/auth/refresh/`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ refresh: refreshToken }),
+          cache: "no-store",
+        },
+        15000,
+      );
+
+      if (!refreshRes.ok) return null;
+
+      const newTokens: AuthTokensResponse = await refreshRes.json();
+      authService.saveTokens(newTokens.access, newTokens.refresh);
+      return newTokens.access;
+    } catch {
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+/**
+ * Защищённый fetch: Bearer + тихий refresh при 401.
+ * Параллельные 401 делят один refresh-запрос.
  */
-export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  // Было: let accessToken = ...
+export async function authFetch(
+  url: string,
+  options: RequestInit = {},
+): Promise<Response> {
+  const headers = new Headers(options.headers);
   const accessToken = authService.getAccessToken();
 
-  const headers = new Headers(options.headers);
   if (accessToken) {
     headers.set("Authorization", `Bearer ${accessToken}`);
   }
@@ -149,58 +204,48 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
   }
   headers.set("Accept", "application/json");
 
-  // 1. Первый запрос
-  let response = await fetchWithTimeout(url, { ...options, headers }, 30000);
+  let response = await fetchWithTimeout(
+    url,
+    { ...options, headers, cache: "no-store" },
+    15000,
+  );
 
-  // 2. Если токен протух (401 Unauthorized) -> пытаемся обновить
   if (response.status === 401) {
-    const refreshToken = authService.getRefreshToken();
+    const newAccess = await refreshAccessToken();
 
-    if (refreshToken) {
-      try {
-        // Тихо стучимся на эндпоинт обновления (пункт 0.3 API.md)
-        const refreshRes = await fetch(`${API_URL}/auth/refresh/`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Accept": "application/json" },
-          body: JSON.stringify({ refresh: refreshToken }),
-        });
-
-        if (refreshRes.ok) {
-          const newTokens: AuthTokensResponse = await refreshRes.json();
-
-          // Сохраняем НОВУЮ пару токенов (access + новый refresh)
-          authService.saveTokens(newTokens.access, newTokens.refresh);
-
-          // Обновляем заголовок новым токеном
-          headers.set("Authorization", `Bearer ${newTokens.access}`);
-
-          // 3. Повторяем исходный запрос с новым токеном!
-          response = await fetchWithTimeout(url, { ...options, headers }, 30000);
-        } else {
-          // Если refresh токен тоже протух/битый (сервер вернул 401) - СЕССИЯ МЕРТВА
-          handleSessionExpired();
-          throw new Error("Session expired");
-        }
-      } catch (e) {
-        // При любой сетевой ошибке во время обновления — тоже чистим сессию
-        handleSessionExpired();
-        throw e;
-      }
+    if (newAccess) {
+      headers.set("Authorization", `Bearer ${newAccess}`);
+      response = await fetchWithTimeout(
+        url,
+        { ...options, headers, cache: "no-store" },
+        15000,
+      );
     } else {
-      // Если refresh токена вообще нет в куках, но access протух
       handleSessionExpired();
+      throw new Error("Session expired");
     }
   }
 
   return response;
 }
 
+/** Общие заголовки + ISR-опции для публичных GET */
+function publicGetOptions(revalidateSeconds: number): FetchOptions {
+  return {
+    headers: { Accept: "application/json" },
+    // На сервере Next закэширует; на клиенте next игнорируется
+    next: { revalidate: revalidateSeconds },
+  };
+}
+
 // ==========================================
-// 3. ПУБЛИЧНЫЕ ЭНДПОИНТЫ (Товары, Категории, Продавцы)
+// 3. ПУБЛИЧНЫЕ ЭНДПОИНТЫ
 // ==========================================
 
 /** Список товаров */
-export async function fetchProducts(params?: FetchProductsParams): Promise<ProductListResponse> {
+export async function fetchProducts(
+  params?: FetchProductsParams,
+): Promise<ProductListResponse> {
   const query = new URLSearchParams();
   if (params?.page) query.set("page", String(params.page));
   if (params?.page_size) query.set("page_size", String(params.page_size));
@@ -210,9 +255,11 @@ export async function fetchProducts(params?: FetchProductsParams): Promise<Produ
   if (params?.ordering) query.set("ordering", params.ordering);
 
   try {
-    const res = await fetchWithTimeout(`${API_URL}/products/?${query.toString()}`, {
-      headers: { Accept: "application/json" },
-    }, 60000); // 60 сек на просыпание Render
+    const res = await fetchWithTimeout(
+      `${API_URL}/products/?${query.toString()}`,
+      publicGetOptions(60),
+      20000,
+    );
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
@@ -223,11 +270,15 @@ export async function fetchProducts(params?: FetchProductsParams): Promise<Produ
 }
 
 /** Детали товара */
-export async function fetchProduct(id: number | string): Promise<Product | null> {
+export async function fetchProduct(
+  id: number | string,
+): Promise<Product | null> {
   try {
-    const res = await fetchWithTimeout(`${API_URL}/products/${id}/`, {
-      headers: { Accept: "application/json" },
-    }, 60000);
+    const res = await fetchWithTimeout(
+      `${API_URL}/products/${id}/`,
+      publicGetOptions(120),
+      20000,
+    );
 
     if (!res.ok) return null;
     return await res.json();
@@ -240,9 +291,11 @@ export async function fetchProduct(id: number | string): Promise<Product | null>
 /** Список всех категорий */
 export async function fetchCategories(): Promise<CategoryListResponse> {
   try {
-    const res = await fetchWithTimeout(`${API_URL}/categories/`, {
-      headers: { Accept: "application/json" },
-    }, 60000);
+    const res = await fetchWithTimeout(
+      `${API_URL}/categories/`,
+      publicGetOptions(3600),
+      20000,
+    );
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
@@ -253,11 +306,15 @@ export async function fetchCategories(): Promise<CategoryListResponse> {
 }
 
 /** Детали категории */
-export async function fetchCategory(id: number | string): Promise<Category | null> {
+export async function fetchCategory(
+  id: number | string,
+): Promise<Category | null> {
   try {
-    const res = await fetchWithTimeout(`${API_URL}/categories/${id}/`, {
-      headers: { Accept: "application/json" },
-    }, 60000);
+    const res = await fetchWithTimeout(
+      `${API_URL}/categories/${id}/`,
+      publicGetOptions(3600),
+      20000,
+    );
 
     if (!res.ok) return null;
     return await res.json();
@@ -270,9 +327,11 @@ export async function fetchCategory(id: number | string): Promise<Category | nul
 /** Список всех продавцов */
 export async function fetchSellers(): Promise<SellerListResponse> {
   try {
-    const res = await fetchWithTimeout(`${API_URL}/sellers/`, {
-      headers: { Accept: "application/json" },
-    }, 60000);
+    const res = await fetchWithTimeout(
+      `${API_URL}/sellers/`,
+      publicGetOptions(300),
+      20000,
+    );
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
@@ -287,19 +346,27 @@ export async function fetchSellers(): Promise<SellerListResponse> {
 // ==========================================
 
 /** Регистрация пользователя */
-export async function registerUser(data: RegisterPayload): Promise<RegisterResponse> {
-  const res = await fetchWithTimeout(`${API_URL}/auth/register/`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Accept": "application/json",
+export async function registerUser(
+  data: RegisterPayload,
+): Promise<RegisterResponse> {
+  const res = await fetchWithTimeout(
+    `${API_URL}/auth/register/`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(data),
+      cache: "no-store",
     },
-    body: JSON.stringify(data),
-  }, 35000);
+    20000,
+  );
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    const errorMessage = Object.values(errorData).flat().join(" ") || "Ошибка при регистрации";
+    const errorMessage =
+      Object.values(errorData).flat().join(" ") || "Ошибка при регистрации";
     throw new Error(errorMessage);
   }
 
@@ -307,32 +374,39 @@ export async function registerUser(data: RegisterPayload): Promise<RegisterRespo
 }
 
 /** Вход (Логин) */
-export async function loginUser(data: LoginPayload): Promise<AuthTokensResponse> {
-  const res = await fetchWithTimeout(`${API_URL}/auth/login/`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Accept": "application/json",
+export async function loginUser(
+  data: LoginPayload,
+): Promise<AuthTokensResponse> {
+  const res = await fetchWithTimeout(
+    `${API_URL}/auth/login/`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(data),
+      cache: "no-store",
     },
-    body: JSON.stringify(data),
-  }, 35000);
+    20000,
+  );
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    const errorMessage = errorData.detail || Object.values(errorData).flat().join(" ") || "Ошибка при входе";
+    const errorMessage =
+      errorData.detail ||
+      Object.values(errorData).flat().join(" ") ||
+      "Ошибка при входе";
     throw new Error(errorMessage);
   }
 
   return res.json();
 }
 
-/** Получение профиля текущего пользователя (Защищенный эндпоинт) */
+/** Профиль текущего пользователя */
 export async function fetchMe(): Promise<UserProfile | null> {
   try {
-    // Используем authFetch! Если токен протух, он сам обновится.
-    // Если сессия мертва, authFetch сам выкинет на /login.
     const res = await authFetch(`${API_URL}/auth/me/`);
-
     if (!res.ok) return null;
     return await res.json();
   } catch (error) {

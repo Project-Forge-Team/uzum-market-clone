@@ -8,7 +8,7 @@ import { z } from "zod";
 import Link from "next/link";
 
 import { registerUser } from "@/lib/api";
-import { authService } from "@/lib/auth-service";
+import { authService, notifyAuthChange } from "@/lib/auth-service";
 
 // 1. Настраиваем правила валидации (Zod)
 const registerSchema = z.object({
@@ -50,6 +50,7 @@ export default function RegisterForm() {
         localStorage.setItem("uzum_user_name", response.user.first_name);
       }
 
+      notifyAuthChange();
       router.push("/profile");
       router.refresh();
     } catch (err: unknown) {

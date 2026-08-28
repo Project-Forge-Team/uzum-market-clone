@@ -1,4 +1,3 @@
-// app/search/page.tsx
 import { fetchProducts, fetchCategory } from "@/lib/api";
 import ProductCard from "@/components/ui/ProductCard";
 import Link from "next/link";
@@ -13,22 +12,19 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const q = typeof sp.q === "string" ? sp.q : "";
   const category = typeof sp.category === "string" ? sp.category : "";
 
-  // Запрос к API с фильтрами
-  const data = await fetchProducts({
-    search: q || undefined,
-    category: category || undefined,
-    page: 1,
-  });
+  // Параллельно: товары + имя категории (раньше ждали друг друга)
+  const [data, cat] = await Promise.all([
+    fetchProducts({
+      search: q || undefined,
+      category: category || undefined,
+      page: 1,
+    }),
+    category ? fetchCategory(category) : Promise.resolve(null),
+  ]);
 
   const products = data.results || [];
   const total = data.count || 0;
-
-  // Пытаемся получить имя категории для заголовка
-  let categoryName: string | null = null;
-  if (category) {
-    const cat = await fetchCategory(category);
-    categoryName = cat?.name ?? null;
-  }
+  const categoryName = cat?.name ?? null;
 
   const heading = q
     ? `Результаты поиска: «${q}»`
@@ -38,7 +34,6 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   return (
     <div className="w-full max-w-[1240px] mx-auto px-4 mt-6 mb-16">
-      {/* Хлебные крошки */}
       <nav className="flex items-center gap-1 text-sm text-gray-500 mb-4">
         <Link href="/" className="hover:text-[#7000FF] transition-colors">
           Главная
@@ -48,9 +43,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       </nav>
 
       <h1 className="text-2xl font-bold mb-2">{heading}</h1>
-      <p className="text-sm text-gray-500 mb-6">
-        Найдено товаров: {total}
-      </p>
+      <p className="text-sm text-gray-500 mb-6">Найдено товаров: {total}</p>
 
       {products.length > 0 ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -63,10 +56,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           <p className="text-lg">Ничего не найдено.</p>
           <p className="text-sm mt-2">
             Попробуйте изменить запрос или вернуться на{" "}
-            <Link
-              href="/"
-              className="text-[#7000FF] hover:underline"
-            >
+            <Link href="/" className="text-[#7000FF] hover:underline">
               главную
             </Link>
             .

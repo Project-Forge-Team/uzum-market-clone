@@ -1,35 +1,44 @@
 import Cookies from "js-cookie";
 
-// Названия наших кук
 const ACCESS_TOKEN_KEY = "uzum_access_token";
 const REFRESH_TOKEN_KEY = "uzum_refresh_token";
 
+const isSecure =
+  typeof window !== "undefined" && window.location.protocol === "https:";
+
+const cookieBase = {
+  path: "/",
+  sameSite: "lax" as const,
+  secure: isSecure,
+};
+
 export const authService = {
-  // Сохраняем токены после успешного "входа"
   saveTokens: (access: string, refresh: string) => {
-    // access живёт 1 час (1/24 дня), refresh — 7 дней
-    Cookies.set(ACCESS_TOKEN_KEY, access, { expires: 1 / 24, path: "/" });
-    Cookies.set(REFRESH_TOKEN_KEY, refresh, { expires: 7, path: "/" });
+    // access ~ 1 час, refresh ~ 7 дней
+    Cookies.set(ACCESS_TOKEN_KEY, access, { ...cookieBase, expires: 1 / 24 });
+    Cookies.set(REFRESH_TOKEN_KEY, refresh, { ...cookieBase, expires: 7 });
   },
 
-  // Получаем access токен (для будущих запросов к API)
-  getAccessToken: () => {
-    return Cookies.get(ACCESS_TOKEN_KEY);
-  },
+  getAccessToken: () => Cookies.get(ACCESS_TOKEN_KEY),
 
-  // Проверяем, авторизован ли пользователь (есть ли токен)
+  getRefreshToken: () => Cookies.get(REFRESH_TOKEN_KEY),
+
+  /** Авторизован, если есть access или refresh (access можно обновить) */
   isAuthenticated: () => {
-    return !!Cookies.get(ACCESS_TOKEN_KEY);
+    return !!(Cookies.get(ACCESS_TOKEN_KEY) || Cookies.get(REFRESH_TOKEN_KEY));
   },
 
-  // === ВОТ ЭТА СТРОКА У ТЕБЯ ПРОПУЩЕНА! ДОБАВЬ ЕЁ ===
-  getRefreshToken: () => {
-    return Cookies.get(REFRESH_TOKEN_KEY);
-  },
-
-  // Очищаем токены при выходе (Logout)
   clearTokens: () => {
     Cookies.remove(ACCESS_TOKEN_KEY, { path: "/" });
     Cookies.remove(REFRESH_TOKEN_KEY, { path: "/" });
   },
 };
+
+/** Событие: сессия изменилась (login / logout) — слушает Header */
+export const AUTH_CHANGE_EVENT = "uzum:auth-change";
+
+export function notifyAuthChange() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_CHANGE_EVENT));
+  }
+}

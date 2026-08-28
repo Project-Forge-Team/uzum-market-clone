@@ -1,9 +1,5 @@
-"use client";
-
-import { useState, useEffect, useTransition } from "react"; // Добавили useTransition
-import { useParams } from "next/navigation";
+import { notFound } from "next/navigation";
 import { fetchProduct } from "@/lib/api";
-import type { Product } from "@/types/product";
 import ProductGallery from "@/components/ProductGallery";
 import {
   Star,
@@ -15,71 +11,36 @@ import {
   ShoppingCart,
 } from "lucide-react";
 import Link from "next/link";
+import type { Metadata } from "next";
 
-export default function ProductPage() {
-  const params = useParams();
-  const id = params.id as string;
+interface ProductPageProps {
+  params: Promise<{ id: string }>;
+}
 
-  const [product, setProduct] = useState<Product | null>(null);
-  const [error, setError] = useState(false);
-  const [isPending, startTransition] = useTransition(); // Используем transition для плавности
+export async function generateMetadata({
+  params,
+}: ProductPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const product = await fetchProduct(id);
+  if (!product) return { title: "Товар не найден" };
+  return {
+    title: `${product.title} | Uzum Market`,
+    description: product.description?.slice(0, 160) || product.title,
+  };
+}
 
-  useEffect(() => {
-    // Убрали setLoading(true) отсюда!
-    // Сбрасываем ошибки и продукт при смене ID
-    
-    // Оборачиваем в startTransition, чтобы React знал, что это обновление может быть прервано
-    // и не блокировало UI. Это решает проблему "cascading renders".
-    startTransition(() => {
-      fetchProduct(id)
-        .then((data) => {
-          if (!data) {
-            setError(true);
-            setProduct(null);
-          } else {
-            setProduct(data);
-          }
-        })
-        .catch(() => {
-          setError(true);
-          setProduct(null);
-        });
-    });
-  }, [id]);
+/** Server Component — данные товара на сервере (SEO + без клиентского waterfall) */
+export default async function ProductPage({ params }: ProductPageProps) {
+  const { id } = await params;
+  const product = await fetchProduct(id);
 
-  // Теперь loading - это isPending ИЛИ (продукта нет и ошибки нет при первом рендере)
-  // Но isPending не работает на самый первый маунт. 
-  // Поэтому для первого рендера проверяем product === null.
-  const isLoading = isPending || (product === null && !error);
-
-  if (isLoading) {
-    return (
-      <div className="max-w-6xl mx-auto p-4 md:p-6">
-        <div className="animate-pulse">
-          <div className="h-4 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="h-96 bg-gray-200 rounded-xl"></div>
-            <div className="space-y-4">
-              <div className="h-8 bg-gray-200 rounded w-3/4"></div>
-              <div className="h-6 bg-gray-200 rounded w-1/4"></div>
-              <div className="h-10 bg-gray-200 rounded"></div>
-              <div className="h-10 bg-gray-200 rounded"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  if (!product) {
+    notFound();
   }
 
-  if (error || !product) {
-    return (
-      <div className="max-w-6xl mx-auto p-4 md:p-6 text-center py-20">
-        <p className="text-gray-500 text-lg">Товар не найден</p>
-      </div>
-    );
-  }
-
-  const productImages = product.images?.length ? product.images : [product.image];
+  const productImages = product.images?.length
+    ? product.images
+    : [product.image];
   const discountPercent = product.old_price
     ? Math.round(
         ((Number(product.old_price) - Number(product.price)) /
@@ -90,7 +51,6 @@ export default function ProductPage() {
 
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-6">
-      {/* Хлебные крошки */}
       <nav className="flex items-center gap-1 text-sm text-gray-500 mb-4 overflow-x-auto whitespace-nowrap">
         <Link href="/" className="hover:text-[#7000FF] transition-colors">
           Главная
@@ -98,12 +58,12 @@ export default function ProductPage() {
         <ChevronRight size={14} />
         {product.category && (
           <>
-            <a
-              href={`/catalog/${product.category.slug}`}
+            <Link
+              href={`/search?category=${product.category.id}`}
               className="hover:text-[#7000FF] transition-colors"
             >
               {product.category.name}
-            </a>
+            </Link>
             <ChevronRight size={14} />
           </>
         )}
@@ -123,7 +83,10 @@ export default function ProductPage() {
               <Star size={18} className="fill-yellow-400 text-yellow-400" />
               <span className="font-medium">{product.rating}</span>
             </div>
-            <a href="#reviews" className="text-[#7000FF] hover:underline text-sm">
+            <a
+              href="#reviews"
+              className="text-[#7000FF] hover:underline text-sm"
+            >
               {product.reviews_count} отзывов
             </a>
           </div>
@@ -176,10 +139,16 @@ export default function ProductPage() {
                   <Store size={20} className="text-gray-600" />
                 </div>
                 <div>
-                  <p className="font-medium text-gray-900">{product.seller.name}</p>
+                  <p className="font-medium text-gray-900">
+                    {product.seller.name}
+                  </p>
                   <div className="flex items-center gap-1 text-sm text-gray-500">
-                    <Star size={14} className="fill-yellow-400 text-yellow-400" />
-                    {product.seller.rating} · {product.seller.reviews_count} отзывов
+                    <Star
+                      size={14}
+                      className="fill-yellow-400 text-yellow-400"
+                    />
+                    {product.seller.rating} · {product.seller.reviews_count}{" "}
+                    отзывов
                   </div>
                 </div>
               </div>
@@ -196,28 +165,34 @@ export default function ProductPage() {
         </div>
       </div>
 
-      {/* Характеристики */}
-      {product.characteristics && Object.keys(product.characteristics).length > 0 && (
-        <section className="mt-12">
-          <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">
-            Характеристики
-          </h2>
-          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-            <table className="w-full text-sm">
-              <tbody>
-                {Object.entries(product.characteristics).map(([key, value], index) => (
-                  <tr key={key} className={index % 2 === 0 ? "bg-gray-50" : "bg-white"}>
-                    <td className="px-4 py-3 text-gray-500 w-1/3">{key}</td>
-                    <td className="px-4 py-3 text-gray-900 font-medium">{value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+      {product.characteristics &&
+        Object.keys(product.characteristics).length > 0 && (
+          <section className="mt-12">
+            <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">
+              Характеристики
+            </h2>
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+              <table className="w-full text-sm">
+                <tbody>
+                  {Object.entries(product.characteristics).map(
+                    ([key, value], index) => (
+                      <tr
+                        key={key}
+                        className={index % 2 === 0 ? "bg-gray-50" : "bg-white"}
+                      >
+                        <td className="px-4 py-3 text-gray-500 w-1/3">{key}</td>
+                        <td className="px-4 py-3 text-gray-900 font-medium">
+                          {value}
+                        </td>
+                      </tr>
+                    ),
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
-      {/* Описание */}
       {product.description && (
         <section className="mt-12">
           <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">
@@ -227,7 +202,6 @@ export default function ProductPage() {
         </section>
       )}
 
-      {/* Отзывы */}
       <section id="reviews" className="mt-12">
         <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">
           Отзывы ({product.reviews_count})

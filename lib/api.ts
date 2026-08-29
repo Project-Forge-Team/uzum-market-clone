@@ -6,15 +6,14 @@ import { Product } from "@/types/product";
 const RAW_BACKEND_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://backend-uzum-market.onrender.com/api";
+  
 const API_BASE = RAW_BACKEND_URL.replace(/\/+$/, "");
 
 function getApiBase(): string {
-  // На сервере Next.js (SSR) идем напрямую к Render (быстрее, без прокси)
   if (typeof window === "undefined") {
     return "https://backend-uzum-market.onrender.com/api";
   }
-  // В браузере — относительный путь, сработает rewrites
-  return "/api";
+  return "/api"; // Теперь это попадет в наш новый route.ts
 }
 
 // ==========================================

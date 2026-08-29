@@ -4,6 +4,17 @@ const nextConfig = {
   // Не даём Next.js убирать trailing slash у /api-путей — бэкенд Django
   // ожидает конечный слэш (/auth/csrf/, /products/ и т.д.).
   skipTrailingSlashRedirect: true,
+
+  // Проксируем все /api/* запросы на бэкенд Django
+  async rewrites() {
+    return [
+      {
+        source: "/api/auth/:path*",
+        destination: "https://backend-uzum-market.onrender.com/api/auth/:path*",
+      },
+    ];
+  },
+
   images: {
     remotePatterns: [
       {

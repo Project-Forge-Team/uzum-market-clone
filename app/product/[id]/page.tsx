@@ -38,9 +38,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
     notFound();
   }
 
-  const productImages = product.images?.length
-    ? product.images
-    : [product.image];
+  const rawImages = (product.images?.length ? product.images : [product.image]).filter(
+    Boolean,
+  ) as string[];
+  const productImages = rawImages.length
+    ? rawImages
+    : ["https://placehold.co/600x600?text=Uzum"];
   const discountPercent = product.old_price
     ? Math.round(
         ((Number(product.old_price) - Number(product.price)) /

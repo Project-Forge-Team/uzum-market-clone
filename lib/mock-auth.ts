@@ -8,11 +8,11 @@ export interface MockAuthResponse {
 }
 
 // Фейковый логин
-export async function mockLogin(email: string, password: string): Promise<MockAuthResponse> {
+export async function mockLogin(email: string, _password: string): Promise<MockAuthResponse> {
   await delay(800);
-  
-  // Допустим, правильный пароль для теста — "123456"
-  if (password.length >= 6) {
+
+  // Допустим, правильный пароль для теста — не короче 6 символов.
+  if (_password.length >= 6) {
     return {
       access: "fake-jwt-access-" + Date.now(),
       refresh: "fake-jwt-refresh-" + Date.now(),
@@ -23,7 +23,8 @@ export async function mockLogin(email: string, password: string): Promise<MockAu
 }
 
 // Фейковая регистрация
-export async function mockRegister(name: string, email: string, password: string): Promise<MockAuthResponse> {
+export async function mockRegister(name: string, email: string, _password: string): Promise<MockAuthResponse> {
+  void _password; // сохраняем сигнатуру-совместимость со старым API формы
   await delay(1000);
   return {
     access: "fake-jwt-access-" + Date.now(),

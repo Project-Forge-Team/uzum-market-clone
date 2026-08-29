@@ -1,9 +1,29 @@
 import { Product } from "@/types/product";
-import { authService } from "@/lib/auth-service";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://backend-uzum-market.onrender.com/api";
+// ==========================================
+// 0. БАЗА API
+// ==========================================
+//
+// Браузер ходит по относительному `/api` (режим A — фронтенд проксирует /api
+// на бэкенд через proxy.ts). Так cookies остаются same-site, а Server
+// Components при этом обращаются к бэкенду по абсолютному адресу.
+const RAW_CLIENT_API_URL =
+  (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/+$/, "") || "/api";
+const SERVER_API_URL = (
+  process.env.SERVER_API_URL ||
+  "https://backend-uzum-market.onrender.com/api"
+).replace(/\/+$/, "");
+
+function getApiBase(): string {
+  // Внутри браузера — относительный путь (чтобы работал proxy).
+  if (typeof window !== "undefined") {
+    return RAW_CLIENT_API_URL.startsWith("http")
+      ? RAW_CLIENT_API_URL
+      : "/api";
+  }
+  // На сервере Next — абсолютный URL до бэкенда.
+  return SERVER_API_URL;
+}
 
 // ==========================================
 // 1. ТИПЫ И ИНТЕРФЕЙСЫ
@@ -11,6 +31,8 @@ const API_URL =
 
 export interface PaginatedResponse<T> {
   count: number;
+  page_size?: number;
+  total_pages?: number;
   next: string | null;
   previous: string | null;
   results: T[];
@@ -22,7 +44,13 @@ export interface FetchProductsParams {
   page?: number;
   page_size?: number;
   category?: string;
+  category_slug?: string;
   seller?: string;
+  min_price?: string | number;
+  max_price?: string | number;
+  min_rating?: string | number;
+  is_ad?: boolean;
+  discounted?: boolean;
   search?: string;
   ordering?: string;
 }
@@ -37,7 +65,8 @@ export type CategoryListResponse = PaginatedResponse<Category>;
 export interface Seller {
   id: number;
   name: string;
-  rating: number;
+  /** Decimal приходит строкой в формате «4.80» */
+  rating: string | number;
   reviews_count: number;
 }
 export type SellerListResponse = PaginatedResponse<Seller>;
@@ -56,29 +85,13 @@ export interface LoginPayload {
   password: string;
 }
 
-export interface RegisterResponse {
-  user: {
-    id: number;
-    email: string;
-    first_name: string;
-    last_name: string;
-    phone: string;
-  };
-  refresh: string;
-  access: string;
-}
-
-export interface AuthTokensResponse {
-  refresh: string;
-  access: string;
-}
-
 export interface UserProfile {
   id: number;
   email: string;
   first_name: string;
   last_name: string;
   phone: string;
+  date_joined?: string;
 }
 
 // ==========================================
@@ -92,7 +105,7 @@ type FetchOptions = RequestInit & {
   cache?: RequestCache;
 };
 
-/** Fetch с таймаутом; сохраняет внешний AbortSignal */
+/** Fetch с таймаутом; сохраняет внешний AbortSignal и credentials */
 async function fetchWithTimeout(
   url: string,
   options: FetchOptions = {},
@@ -131,52 +144,100 @@ async function fetchWithTimeout(
   return fetch(url, { ...options, signal });
 }
 
-function handleSessionExpired() {
-  authService.clearTokens();
-  if (typeof localStorage !== "undefined") {
-    localStorage.removeItem("uzum_user_name");
-  }
+// ==========================================
+// 3. CSRF (double-submit для unsafe-запросов)
+// ==========================================
 
-  if (typeof window !== "undefined") {
-    const currentPath = window.location.pathname;
-    if (currentPath !== "/login" && currentPath !== "/register") {
-      window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
-    }
-  }
+const CSRF_COOKIE_NAME = "uzum_csrf";
+
+function readCsrfCookie(): string | null {
+  if (typeof document === "undefined") return null;
+  const escaped = CSRF_COOKIE_NAME.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = document.cookie.match(
+    new RegExp(`(?:^|;\\s*)${escaped}=([^;]*)`),
+  );
+  return match?.[1] ?? null;
 }
 
-/** Один refresh на все параллельные 401 — без race condition */
-let refreshPromise: Promise<string | null> | null = null;
+let csrfPromise: Promise<string | null> | null = null;
 
-async function refreshAccessToken(): Promise<string | null> {
-  if (refreshPromise) return refreshPromise;
+/** Получает (или подтверждает) CSRF-токен из cookie uzum_csrf. */
+async function ensureCsrfToken(): Promise<string | null> {
+  if (typeof document === "undefined") return null;
 
-  refreshPromise = (async () => {
-    const refreshToken = authService.getRefreshToken();
-    if (!refreshToken) return null;
+  const existing = readCsrfCookie();
+  if (existing) return existing;
 
+  if (csrfPromise) return csrfPromise;
+
+  csrfPromise = (async () => {
     try {
-      const refreshRes = await fetchWithTimeout(
-        `${API_URL}/auth/refresh/`,
+      await fetchWithTimeout(
+        `${getApiBase()}/auth/csrf/`,
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({ refresh: refreshToken }),
+          method: "GET",
+          credentials: "include",
+          headers: { Accept: "application/json" },
           cache: "no-store",
         },
         15000,
       );
-
-      if (!refreshRes.ok) return null;
-
-      const newTokens: AuthTokensResponse = await refreshRes.json();
-      authService.saveTokens(newTokens.access, newTokens.refresh);
-      return newTokens.access;
+      return readCsrfCookie();
     } catch {
-      return null;
+      return readCsrfCookie();
+    } finally {
+      csrfPromise = null;
+    }
+  })();
+
+  return csrfPromise;
+}
+
+async function buildHeaders(
+  method: string,
+  headers?: HeadersInit,
+): Promise<Headers> {
+  const result = new Headers(headers);
+  result.set("Accept", "application/json");
+
+  if (
+    ["POST", "PUT", "PATCH", "DELETE"].includes(method.toUpperCase())
+  ) {
+    const token = await ensureCsrfToken();
+    if (token) result.set("X-CSRFToken", token);
+  }
+
+  return result;
+}
+
+// ==========================================
+// 4. ОБНОВЛЕНИЕ / ЗАЩИЩЁННЫЙ FETCH
+// ==========================================
+
+/** Один refresh на все параллельные 401 — без race condition. */
+let refreshPromise: Promise<boolean> | null = null;
+
+async function refreshAccessToken(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    try {
+      const headers = await buildHeaders("POST", {
+        Accept: "application/json",
+      });
+      const refreshRes = await fetchWithTimeout(
+        `${getApiBase()}/auth/refresh/`,
+        {
+          method: "POST",
+          headers,
+          credentials: "include",
+          cache: "no-store",
+        },
+        15000,
+      );
+      return refreshRes.ok;
+    } catch {
+      return false;
     } finally {
       refreshPromise = null;
     }
@@ -186,43 +247,47 @@ async function refreshAccessToken(): Promise<string | null> {
 }
 
 /**
- * Защищённый fetch: Bearer + тихий refresh при 401.
- * Параллельные 401 делят один refresh-запрос.
+ * Защищённый fetch. Токены живут в HttpOnly cookies (`uzum_access_token` /
+ * `uzum_refresh_token`), поэтому JS их не читает и не пересылает вручную.
+ * При 401 — один общий refresh и повтор исходного запроса.
  */
 export async function authFetch(
   url: string,
   options: RequestInit = {},
 ): Promise<Response> {
-  const headers = new Headers(options.headers);
-  const accessToken = authService.getAccessToken();
-
-  if (accessToken) {
-    headers.set("Authorization", `Bearer ${accessToken}`);
-  }
-  if (!headers.has("Content-Type") && options.body) {
-    headers.set("Content-Type", "application/json");
-  }
-  headers.set("Accept", "application/json");
+  const method = options.method || "GET";
+  const headers = await buildHeaders(method, options.headers);
 
   let response = await fetchWithTimeout(
     url,
-    { ...options, headers, cache: "no-store" },
+    {
+      ...options,
+      headers,
+      credentials: "include",
+      cache: "no-store",
+    },
     15000,
   );
 
   if (response.status === 401) {
-    const newAccess = await refreshAccessToken();
+    const refreshed = await refreshAccessToken();
 
-    if (newAccess) {
-      headers.set("Authorization", `Bearer ${newAccess}`);
+    if (refreshed) {
+      const retryHeaders = await buildHeaders(method, options.headers);
       response = await fetchWithTimeout(
         url,
-        { ...options, headers, cache: "no-store" },
+        {
+          ...options,
+          headers: retryHeaders,
+          credentials: "include",
+          cache: "no-store",
+        },
         15000,
       );
     } else {
-      handleSessionExpired();
-      throw new Error("Session expired");
+      // Не редиректим сами: публичная страница может спокойно работать как
+      // анонимная. Защищённые страницы решают, что делать с 401/пустым профилем.
+      return response;
     }
   }
 
@@ -233,13 +298,14 @@ export async function authFetch(
 function publicGetOptions(revalidateSeconds: number): FetchOptions {
   return {
     headers: { Accept: "application/json" },
+    credentials: "include",
     // На сервере Next закэширует; на клиенте next игнорируется
     next: { revalidate: revalidateSeconds },
   };
 }
 
 // ==========================================
-// 3. ПУБЛИЧНЫЕ ЭНДПОИНТЫ
+// 5. ПУБЛИЧНЫЕ ЭНДПОИНТЫ
 // ==========================================
 
 /** Список товаров */
@@ -250,13 +316,23 @@ export async function fetchProducts(
   if (params?.page) query.set("page", String(params.page));
   if (params?.page_size) query.set("page_size", String(params.page_size));
   if (params?.category) query.set("category", params.category);
+  if (params?.category_slug) query.set("category_slug", params.category_slug);
   if (params?.seller) query.set("seller", params.seller);
+  if (params?.min_price !== undefined)
+    query.set("min_price", String(params.min_price));
+  if (params?.max_price !== undefined)
+    query.set("max_price", String(params.max_price));
+  if (params?.min_rating !== undefined)
+    query.set("min_rating", String(params.min_rating));
+  if (params?.is_ad !== undefined) query.set("is_ad", String(params.is_ad));
+  if (params?.discounted !== undefined)
+    query.set("discounted", String(params.discounted));
   if (params?.search) query.set("search", params.search);
   if (params?.ordering) query.set("ordering", params.ordering);
 
   try {
     const res = await fetchWithTimeout(
-      `${API_URL}/products/?${query.toString()}`,
+      `${getApiBase()}/products/?${query.toString()}`,
       publicGetOptions(60),
       20000,
     );
@@ -275,7 +351,7 @@ export async function fetchProduct(
 ): Promise<Product | null> {
   try {
     const res = await fetchWithTimeout(
-      `${API_URL}/products/${id}/`,
+      `${getApiBase()}/products/${id}/`,
       publicGetOptions(120),
       20000,
     );
@@ -292,7 +368,7 @@ export async function fetchProduct(
 export async function fetchCategories(): Promise<CategoryListResponse> {
   try {
     const res = await fetchWithTimeout(
-      `${API_URL}/categories/`,
+      `${getApiBase()}/categories/`,
       publicGetOptions(3600),
       20000,
     );
@@ -311,7 +387,7 @@ export async function fetchCategory(
 ): Promise<Category | null> {
   try {
     const res = await fetchWithTimeout(
-      `${API_URL}/categories/${id}/`,
+      `${getApiBase()}/categories/${id}/`,
       publicGetOptions(3600),
       20000,
     );
@@ -328,7 +404,7 @@ export async function fetchCategory(
 export async function fetchSellers(): Promise<SellerListResponse> {
   try {
     const res = await fetchWithTimeout(
-      `${API_URL}/sellers/`,
+      `${getApiBase()}/sellers/`,
       publicGetOptions(300),
       20000,
     );
@@ -342,21 +418,23 @@ export async function fetchSellers(): Promise<SellerListResponse> {
 }
 
 // ==========================================
-// 4. ЭНДПОИНТЫ АВТОРИЗАЦИИ
+// 6. ЭНДПОИНТЫ АВТОРИЗАЦИИ
 // ==========================================
 
-/** Регистрация пользователя */
+/** Регистрация пользователя. Токены приходят в HttpOnly cookies, не в body. */
 export async function registerUser(
   data: RegisterPayload,
-): Promise<RegisterResponse> {
+): Promise<UserProfile> {
+  const headers = await buildHeaders("POST", {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  });
   const res = await fetchWithTimeout(
-    `${API_URL}/auth/register/`,
+    `${getApiBase()}/auth/register/`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
+      headers,
+      credentials: "include",
       body: JSON.stringify(data),
       cache: "no-store",
     },
@@ -373,18 +451,20 @@ export async function registerUser(
   return res.json();
 }
 
-/** Вход (Логин) */
+/** Вход (Логин). Токены приходят в HttpOnly cookies, не в body. */
 export async function loginUser(
   data: LoginPayload,
-): Promise<AuthTokensResponse> {
+): Promise<UserProfile> {
+  const headers = await buildHeaders("POST", {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  });
   const res = await fetchWithTimeout(
-    `${API_URL}/auth/login/`,
+    `${getApiBase()}/auth/login/`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
+      headers,
+      credentials: "include",
       body: JSON.stringify(data),
       cache: "no-store",
     },
@@ -403,10 +483,31 @@ export async function loginUser(
   return res.json();
 }
 
+/** Выход: отзыв refresh-токена + удаление cookies на сервере. */
+export async function logoutUser(): Promise<void> {
+  const headers = await buildHeaders("POST", {
+    Accept: "application/json",
+  });
+  const res = await fetchWithTimeout(
+    `${getApiBase()}/auth/logout/`,
+    {
+      method: "POST",
+      headers,
+      credentials: "include",
+      cache: "no-store",
+    },
+    15000,
+  );
+
+  if (!res.ok) {
+    throw new Error(`Не удалось выйти (${res.status})`);
+  }
+}
+
 /** Профиль текущего пользователя */
 export async function fetchMe(): Promise<UserProfile | null> {
   try {
-    const res = await authFetch(`${API_URL}/auth/me/`);
+    const res = await authFetch(`${getApiBase()}/auth/me/`);
     if (!res.ok) return null;
     return await res.json();
   } catch (error) {

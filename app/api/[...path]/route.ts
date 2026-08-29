@@ -2,13 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL = "https://backend-uzum-market.onrender.com/api";
 
-async function proxyRequest(req: NextRequest, path: string[], method: string) {
+async function proxyRequest(
+  req: NextRequest,
+  context: { params: Promise<{ path: string[] }> },
+  method: string,
+) {
+  // 🔥 ВАЖНО: В Next.js 15+ params теперь является Promise, его нужно awaiting
+  const resolvedParams = await context.params;
+  const path = resolvedParams.path;
+
   // Собираем целевой URL (например, /api/auth/login/)
   const targetUrl = `${BACKEND_URL}/${path.join("/")}${req.nextUrl.search}`;
 
   // Копируем заголовки от браузера
   const headers = new Headers(req.headers);
-  headers.delete("host"); // Удаляем host, чтобы не конфликтовал с backend
+  headers.delete("host"); // Удаляем host, чтобы не конфликтовал с бэкендом
+  headers.delete("connection");
 
   // Явно передаем куки от браузера на бэкенд
   const cookie = req.headers.get("cookie");
@@ -16,7 +25,7 @@ async function proxyRequest(req: NextRequest, path: string[], method: string) {
     headers.set("cookie", cookie);
   }
 
-  // Тело запроса нужно только для POST, PUT, PATCH, DELETE
+  // Тело запроса нужно только для методов, которые его поддерживают
   const body =
     method !== "GET" && method !== "HEAD" ? await req.text() : undefined;
 
@@ -25,8 +34,7 @@ async function proxyRequest(req: NextRequest, path: string[], method: string) {
     method,
     headers,
     body,
-    // Отключаем автоматическое следование редиректам, чтобы избежать циклов
-    redirect: "manual",
+    redirect: "manual", // 🔥 Отключаем автоматическое следование редиректам, чтобы избежать циклов
   });
 
   // Создаем ответ для браузера
@@ -35,7 +43,7 @@ async function proxyRequest(req: NextRequest, path: string[], method: string) {
     statusText: res.statusText,
   });
 
-  // КРИТИЧЕСКИ ВАЖНО: Передаем куки (Set-Cookie) от Django обратно в браузер
+  // 🔥 КРИТИЧЕСКИ ВАЖНО: Передаем куки (Set-Cookie) от Django обратно в браузер
   const setCookie = res.headers.get("set-cookie");
   if (setCookie) {
     response.headers.set("set-cookie", setCookie);
@@ -44,34 +52,38 @@ async function proxyRequest(req: NextRequest, path: string[], method: string) {
   return response;
 }
 
-// Экспортируем обработчики для всех нужных методов
+// Экспортируем обработчики с правильными типами для Next.js 15+
 export async function GET(
   req: NextRequest,
-  { params }: { params: { path: string[] } },
+  context: { params: Promise<{ path: string[] }> },
 ) {
-  return proxyRequest(req, params.path, "GET");
+  return proxyRequest(req, context, "GET");
 }
+
 export async function POST(
   req: NextRequest,
-  { params }: { params: { path: string[] } },
+  context: { params: Promise<{ path: string[] }> },
 ) {
-  return proxyRequest(req, params.path, "POST");
+  return proxyRequest(req, context, "POST");
 }
+
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { path: string[] } },
+  context: { params: Promise<{ path: string[] }> },
 ) {
-  return proxyRequest(req, params.path, "PUT");
+  return proxyRequest(req, context, "PUT");
 }
+
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { path: string[] } },
+  context: { params: Promise<{ path: string[] }> },
 ) {
-  return proxyRequest(req, params.path, "PATCH");
+  return proxyRequest(req, context, "PATCH");
 }
+
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { path: string[] } },
+  context: { params: Promise<{ path: string[] }> },
 ) {
-  return proxyRequest(req, params.path, "DELETE");
+  return proxyRequest(req, context, "DELETE");
 }

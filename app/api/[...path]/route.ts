@@ -84,14 +84,37 @@ async function proxyRequest(
       headers.set(key, value);
     }
   }
-  // Django проверяет Origin/Referer для CSRF. Запрос к бэкенду исходит от
-  // нас, поэтому Origin должен быть origin'ом бэкенда (как у обычного
-  // reverse-proxy), иначе CSRF-проверка отвергнет чужой домен.
-  if (headers.has("origin")) {
-    headers.set("origin", BACKEND_ORIGIN);
+
+  // Тело запроса нужно только для методов, которые его поддерживают
+  const body =
+    method !== "GET" && method !== "HEAD" ? await req.text() : undefined;
+
+  // Делаем запрос на Render от имени сервера Next.js
+  const res = await fetch(targetUrl, {
+    method,
+    headers,
+    body,
+    redirect: "manual", // 🔥 Отключаем автоматическое следование редиректам, чтобы избежать циклов
+  });
+
+  // Создаем ответ для браузера
+  const response = new NextResponse(res.body, {
+    status: res.status,
+    statusText: res.statusText,
+  });
+
+  // Важно: Django может выставлять несколько Set-Cookie (sessionid + csrftoken).
+  // `Headers.set` заменяет заголовок целиком, поэтому при нескольких cookies
+  // теряются все, кроме последнего. Здесь аккуратно переносим все значения.
+  const setCookies = res.headers.getSetCookie?.() ?? [];
+  for (const cookie of setCookies) {
+    response.headers.append("set-cookie", cookie);
   }
-  if (headers.has("referer")) {
-    headers.set("referer", `${BACKEND_ORIGIN}/`);
+
+  // На случай, если бэкенд вернул старый формат заголовка в одном значении
+  const legacySetCookie = res.headers.get("set-cookie");
+  if (legacySetCookie && setCookies.length === 0) {
+    response.headers.set("set-cookie", legacySetCookie);
   }
 
   const hasBody = method !== "GET" && method !== "HEAD";

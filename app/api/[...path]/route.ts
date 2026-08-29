@@ -43,10 +43,18 @@ async function proxyRequest(
     statusText: res.statusText,
   });
 
-  // 🔥 КРИТИЧЕСКИ ВАЖНО: Передаем куки (Set-Cookie) от Django обратно в браузер
-  const setCookie = res.headers.get("set-cookie");
-  if (setCookie) {
-    response.headers.set("set-cookie", setCookie);
+  // Важно: Django может выставлять несколько Set-Cookie (sessionid + csrftoken).
+  // `Headers.set` заменяет заголовок целиком, поэтому при нескольких cookies
+  // теряются все, кроме последнего. Здесь аккуратно переносим все значения.
+  const setCookies = res.headers.getSetCookie?.() ?? [];
+  for (const cookie of setCookies) {
+    response.headers.append("set-cookie", cookie);
+  }
+
+  // На случай, если бэкенд вернул старый формат заголовка в одном значении
+  const legacySetCookie = res.headers.get("set-cookie");
+  if (legacySetCookie && setCookies.length === 0) {
+    response.headers.set("set-cookie", legacySetCookie);
   }
 
   return response;

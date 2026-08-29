@@ -11,9 +11,9 @@ const API_BASE = RAW_BACKEND_URL.replace(/\/+$/, "");
 
 function getApiBase(): string {
   if (typeof window === "undefined") {
-    return "https://backend-uzum-market.onrender.com/api";
+    return API_BASE; // сервер (SSR на Vercel): напрямую в Django
   }
-  return "/api"; // Теперь это попадет в наш новый route.ts
+  return "/api"; // браузер: через same-origin прокси app/api/[...path]/route.ts
 }
 
 // ==========================================
@@ -136,6 +136,28 @@ async function fetchWithTimeout(
   return fetch(url, { ...options, signal });
 }
 
+// Бэкенд на Render free tier «засыпает» и просыпается ~50 секунд,
+// поэтому запросы авторизации ждём дольше обычного.
+const AUTH_TIMEOUT_MS = 60_000;
+
+/**
+ * Человекочитаемое сообщение для сетевых сбоев (сервер не ответил,
+ * соединение оборвалось). Возвращает null, если ошибка не сетевая.
+ */
+function networkErrorMessage(err: unknown): string | null {
+  if (err instanceof TypeError) {
+    return "Не удалось связаться с сервером. Если бэкенд долго «спал» (Render), он просыпается до минуты — подождите и попробуйте ещё раз.";
+  }
+  if (
+    typeof DOMException !== "undefined" &&
+    err instanceof DOMException &&
+    (err.name === "TimeoutError" || err.name === "AbortError")
+  ) {
+    return "Сервер не ответил вовремя. Бэкенд на Render может просыпаться до минуты после простоя — попробуйте ещё раз.";
+  }
+  return null;
+}
+
 // ==========================================
 // 3. CSRF (double-submit для unsafe-запросов)
 // ==========================================
@@ -171,7 +193,7 @@ async function ensureCsrfToken(): Promise<string | null> {
           headers: { Accept: "application/json" },
           cache: "no-store",
         },
-        15000,
+        AUTH_TIMEOUT_MS,
       );
       return readCsrfCookie();
     } catch {
@@ -221,7 +243,7 @@ async function refreshAccessToken(): Promise<boolean> {
           credentials: "include",
           cache: "no-store",
         },
-        15000,
+        30_000,
       );
       return refreshRes.ok;
     } catch {
@@ -249,7 +271,7 @@ export async function authFetch(
       credentials: "include",
       cache: "no-store",
     },
-    15000,
+    AUTH_TIMEOUT_MS,
   );
 
   if (response.status === 401) {
@@ -265,7 +287,7 @@ export async function authFetch(
           credentials: "include",
           cache: "no-store",
         },
-        15000,
+        AUTH_TIMEOUT_MS,
       );
     } else {
       return response;
@@ -401,17 +423,25 @@ export async function registerUser(
     "Content-Type": "application/json",
     Accept: "application/json",
   });
-  const res = await fetchWithTimeout(
-    `${getApiBase()}/auth/register/`,
-    {
-      method: "POST",
-      headers,
-      credentials: "include",
-      body: JSON.stringify(data),
-      cache: "no-store",
-    },
-    20000,
-  );
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      `${getApiBase()}/auth/register/`,
+      {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify(data),
+        cache: "no-store",
+      },
+      AUTH_TIMEOUT_MS,
+    );
+  } catch (err) {
+    throw new Error(
+      networkErrorMessage(err) ??
+        (err instanceof Error ? err.message : "Ошибка при регистрации"),
+    );
+  }
 
   if (!res.ok) {
     // Безопасное приведение типа без использования `any`
@@ -431,17 +461,25 @@ export async function loginUser(data: LoginPayload): Promise<UserProfile> {
     "Content-Type": "application/json",
     Accept: "application/json",
   });
-  const res = await fetchWithTimeout(
-    `${getApiBase()}/auth/login/`,
-    {
-      method: "POST",
-      headers,
-      credentials: "include",
-      body: JSON.stringify(data),
-      cache: "no-store",
-    },
-    20000,
-  );
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      `${getApiBase()}/auth/login/`,
+      {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify(data),
+        cache: "no-store",
+      },
+      AUTH_TIMEOUT_MS,
+    );
+  } catch (err) {
+    throw new Error(
+      networkErrorMessage(err) ??
+        (err instanceof Error ? err.message : "Ошибка при входе"),
+    );
+  }
 
   if (!res.ok) {
     // Безопасное приведение типа без использования `any`
@@ -470,7 +508,7 @@ export async function logoutUser(): Promise<void> {
       credentials: "include",
       cache: "no-store",
     },
-    15000,
+    30_000,
   );
 
   if (!res.ok) {

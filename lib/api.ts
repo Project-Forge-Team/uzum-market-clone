@@ -9,7 +9,12 @@ const RAW_BACKEND_URL =
 const API_BASE = RAW_BACKEND_URL.replace(/\/+$/, "");
 
 function getApiBase(): string {
-  return API_BASE;
+  // На сервере Next.js (SSR) идем напрямую к Render (быстрее, без прокси)
+  if (typeof window === "undefined") {
+    return "https://backend-uzum-market.onrender.com/api";
+  }
+  // В браузере — относительный путь, сработает rewrites
+  return "/api";
 }
 
 // ==========================================

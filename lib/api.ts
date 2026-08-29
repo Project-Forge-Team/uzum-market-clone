@@ -3,26 +3,13 @@ import { Product } from "@/types/product";
 // ==========================================
 // 0. БАЗА API
 // ==========================================
-//
-// Браузер ходит по относительному `/api` (режим A — фронтенд проксирует /api
-// на бэкенд через proxy.ts). Так cookies остаются same-site, а Server
-// Components при этом обращаются к бэкенду по абсолютному адресу.
-const RAW_CLIENT_API_URL =
-  (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/+$/, "") || "/api";
-const SERVER_API_URL = (
-  process.env.SERVER_API_URL ||
-  "https://backend-uzum-market.onrender.com/api"
-).replace(/\/+$/, "");
+const RAW_BACKEND_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://backend-uzum-market.onrender.com/api";
+const API_BASE = RAW_BACKEND_URL.replace(/\/+$/, "");
 
 function getApiBase(): string {
-  // Внутри браузера — относительный путь (чтобы работал proxy).
-  if (typeof window !== "undefined") {
-    return RAW_CLIENT_API_URL.startsWith("http")
-      ? RAW_CLIENT_API_URL
-      : "/api";
-  }
-  // На сервере Next — абсолютный URL до бэкенда.
-  return SERVER_API_URL;
+  return API_BASE;
 }
 
 // ==========================================
@@ -65,7 +52,6 @@ export type CategoryListResponse = PaginatedResponse<Category>;
 export interface Seller {
   id: number;
   name: string;
-  /** Decimal приходит строкой в формате «4.80» */
   rating: string | number;
   reviews_count: number;
 }
@@ -94,18 +80,21 @@ export interface UserProfile {
   date_joined?: string;
 }
 
+// Тип для безопасной обработки ошибок от API (без использования `any`)
+interface ErrorResponse {
+  detail?: string;
+  [key: string]: unknown;
+}
+
 // ==========================================
 // 2. БАЗОВЫЕ ФУНКЦИИ FETCH
 // ==========================================
 
 type FetchOptions = RequestInit & {
-  /** Next.js ISR (только на сервере) */
   next?: { revalidate?: number | false; tags?: string[] };
-  /** Отключить next/fetch cache */
   cache?: RequestCache;
 };
 
-/** Fetch с таймаутом; сохраняет внешний AbortSignal и credentials */
 async function fetchWithTimeout(
   url: string,
   options: FetchOptions = {},
@@ -128,7 +117,6 @@ async function fetchWithTimeout(
   } else if (timeoutSignal) {
     signal = timeoutSignal;
   } else if (!options.signal) {
-    // Fallback для старых runtime без AbortSignal.timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -161,7 +149,6 @@ function readCsrfCookie(): string | null {
 
 let csrfPromise: Promise<string | null> | null = null;
 
-/** Получает (или подтверждает) CSRF-токен из cookie uzum_csrf. */
 async function ensureCsrfToken(): Promise<string | null> {
   if (typeof document === "undefined") return null;
 
@@ -200,9 +187,7 @@ async function buildHeaders(
   const result = new Headers(headers);
   result.set("Accept", "application/json");
 
-  if (
-    ["POST", "PUT", "PATCH", "DELETE"].includes(method.toUpperCase())
-  ) {
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method.toUpperCase())) {
     const token = await ensureCsrfToken();
     if (token) result.set("X-CSRFToken", token);
   }
@@ -214,7 +199,6 @@ async function buildHeaders(
 // 4. ОБНОВЛЕНИЕ / ЗАЩИЩЁННЫЙ FETCH
 // ==========================================
 
-/** Один refresh на все параллельные 401 — без race condition. */
 let refreshPromise: Promise<boolean> | null = null;
 
 async function refreshAccessToken(): Promise<boolean> {
@@ -246,11 +230,6 @@ async function refreshAccessToken(): Promise<boolean> {
   return refreshPromise;
 }
 
-/**
- * Защищённый fetch. Токены живут в HttpOnly cookies (`uzum_access_token` /
- * `uzum_refresh_token`), поэтому JS их не читает и не пересылает вручную.
- * При 401 — один общий refresh и повтор исходного запроса.
- */
 export async function authFetch(
   url: string,
   options: RequestInit = {},
@@ -285,8 +264,6 @@ export async function authFetch(
         15000,
       );
     } else {
-      // Не редиректим сами: публичная страница может спокойно работать как
-      // анонимная. Защищённые страницы решают, что делать с 401/пустым профилем.
       return response;
     }
   }
@@ -294,12 +271,9 @@ export async function authFetch(
   return response;
 }
 
-/** Общие заголовки + ISR-опции для публичных GET */
 function publicGetOptions(revalidateSeconds: number): FetchOptions {
   return {
     headers: { Accept: "application/json" },
-    credentials: "include",
-    // На сервере Next закэширует; на клиенте next игнорируется
     next: { revalidate: revalidateSeconds },
   };
 }
@@ -308,7 +282,6 @@ function publicGetOptions(revalidateSeconds: number): FetchOptions {
 // 5. ПУБЛИЧНЫЕ ЭНДПОИНТЫ
 // ==========================================
 
-/** Список товаров */
 export async function fetchProducts(
   params?: FetchProductsParams,
 ): Promise<ProductListResponse> {
@@ -345,7 +318,6 @@ export async function fetchProducts(
   }
 }
 
-/** Детали товара */
 export async function fetchProduct(
   id: number | string,
 ): Promise<Product | null> {
@@ -364,7 +336,6 @@ export async function fetchProduct(
   }
 }
 
-/** Список всех категорий */
 export async function fetchCategories(): Promise<CategoryListResponse> {
   try {
     const res = await fetchWithTimeout(
@@ -381,7 +352,6 @@ export async function fetchCategories(): Promise<CategoryListResponse> {
   }
 }
 
-/** Детали категории */
 export async function fetchCategory(
   id: number | string,
 ): Promise<Category | null> {
@@ -400,7 +370,6 @@ export async function fetchCategory(
   }
 }
 
-/** Список всех продавцов */
 export async function fetchSellers(): Promise<SellerListResponse> {
   try {
     const res = await fetchWithTimeout(
@@ -421,7 +390,6 @@ export async function fetchSellers(): Promise<SellerListResponse> {
 // 6. ЭНДПОИНТЫ АВТОРИЗАЦИИ
 // ==========================================
 
-/** Регистрация пользователя. Токены приходят в HttpOnly cookies, не в body. */
 export async function registerUser(
   data: RegisterPayload,
 ): Promise<UserProfile> {
@@ -442,19 +410,19 @@ export async function registerUser(
   );
 
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
+    // Безопасное приведение типа без использования `any`
+    const errorData = (await res.json().catch(() => ({}))) as ErrorResponse;
     const errorMessage =
-      Object.values(errorData).flat().join(" ") || "Ошибка при регистрации";
+      Object.values(errorData)
+        .map((val) => (Array.isArray(val) ? val.join(", ") : String(val)))
+        .join(" ") || "Ошибка при регистрации";
     throw new Error(errorMessage);
   }
 
   return res.json();
 }
 
-/** Вход (Логин). Токены приходят в HttpOnly cookies, не в body. */
-export async function loginUser(
-  data: LoginPayload,
-): Promise<UserProfile> {
+export async function loginUser(data: LoginPayload): Promise<UserProfile> {
   const headers = await buildHeaders("POST", {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -472,10 +440,13 @@ export async function loginUser(
   );
 
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
+    // Безопасное приведение типа без использования `any`
+    const errorData = (await res.json().catch(() => ({}))) as ErrorResponse;
     const errorMessage =
       errorData.detail ||
-      Object.values(errorData).flat().join(" ") ||
+      Object.values(errorData)
+        .map((val) => (Array.isArray(val) ? val.join(", ") : String(val)))
+        .join(" ") ||
       "Ошибка при входе";
     throw new Error(errorMessage);
   }
@@ -483,7 +454,6 @@ export async function loginUser(
   return res.json();
 }
 
-/** Выход: отзыв refresh-токена + удаление cookies на сервере. */
 export async function logoutUser(): Promise<void> {
   const headers = await buildHeaders("POST", {
     Accept: "application/json",
@@ -504,7 +474,6 @@ export async function logoutUser(): Promise<void> {
   }
 }
 
-/** Профиль текущего пользователя */
 export async function fetchMe(): Promise<UserProfile | null> {
   try {
     const res = await authFetch(`${getApiBase()}/auth/me/`);

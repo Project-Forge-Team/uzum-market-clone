@@ -14,25 +14,37 @@ export default function ProductCard({ product }: ProductCardProps) {
   const monthlyPayment = product.monthly_payment
     ? Number(product.monthly_payment)
     : null;
+  const discount =
+    product.discount_percent ??
+    (oldPrice && oldPrice > price
+      ? Math.round(((oldPrice - price) / oldPrice) * 100)
+      : 0);
+  const imageSource = product.image || "https://placehold.co/400x400?text=Uzum";
 
   return (
     <Link href={`/product/${product.id}`}>
       <div className="flex flex-col bg-white rounded-xl p-3 hover:shadow-lg transition-shadow cursor-pointer h-full">
         <div className="relative aspect-square mb-2">
           <Image
-            src={product.image}
+            src={imageSource}
             alt={product.title}
             fill
             sizes="(max-width: 768px) 50vw, 25vw"
             className="object-contain"
+            unoptimized
           />
+          {discount > 0 && (
+            <span className="absolute top-2 left-2 bg-[#7000FF]/90 text-white text-[11px] font-bold px-2 py-1 rounded-lg backdrop-blur-sm">
+              -{discount}%
+            </span>
+          )}
           {product.is_ad && (
-            <span className="absolute top-1 right-1 text-[10px] bg-gray-200/90 px-1.5 py-0.5 rounded backdrop-blur-sm text-gray-600 font-medium">
+            <span className="absolute bottom-2 left-2 text-[10px] bg-gray-200/90 px-1.5 py-0.5 rounded backdrop-blur-sm text-gray-600 font-medium">
               Реклама
             </span>
           )}
           <button
-            className="absolute top-1 left-1 p-1.5 bg-white/80 rounded-full hover:bg-white transition-colors backdrop-blur-sm"
+            className="absolute top-2 right-2 p-1.5 bg-white/80 rounded-full hover:bg-white transition-colors backdrop-blur-sm"
             onClick={(e) => {
               e.preventDefault();
               // логика избранного

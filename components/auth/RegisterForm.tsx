@@ -10,16 +10,34 @@ import Link from "next/link";
 import { registerUser } from "@/lib/api";
 import { authService, notifyAuthChange } from "@/lib/auth-service";
 
-// 1. Настраиваем правила валидации (Zod)
-const registerSchema = z.object({
-  first_name: z.string().min(2, "Имя обязательно (минимум 2 буквы)"), // <-- ИЗМЕНЕНО
-  email: z.string().email("Введите корректный email"),
-  password: z.string().min(6, "Пароль должен быть не менее 6 символов"),
-  password2: z.string().min(6, "Подтвердите пароль"),
-}).refine((data) => data.password === data.password2, {
-  message: "Пароли не совпадают",
-  path: ["password2"],
-});
+// 1. Настраиваем правила валидации (Zod) по API-документации
+const registerSchema = z
+  .object({
+    first_name: z.string().min(2, "Имя обязательно (минимум 2 буквы)"),
+    last_name: z.string().optional(),
+    email: z.string().email("Введите корректный email"),
+    phone: z
+      .string()
+      .optional()
+      .refine(
+        (value) =>
+          !value ||
+          /^(\+?\d[\d\s()\-]{7,19})$/.test(value),
+        "Введите корректный номер телефона, например +998901234567",
+      ),
+    password: z
+      .string()
+      .min(8, "Пароль должен быть не менее 8 символов")
+      .refine(
+        (value) => /[A-Za-zА-Яа-яЁё]/.test(value),
+        "Пароль не должен состоять только из цифр",
+      ),
+    password2: z.string().min(8, "Подтвердите пароль"),
+  })
+  .refine((data) => data.password === data.password2, {
+    message: "Пароли не совпадают",
+    path: ["password2"],
+  });
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
@@ -40,15 +58,19 @@ export default function RegisterForm() {
   const onSubmit = async (data: RegisterFormValues) => {
     setServerError(null);
     try {
-      const response = await registerUser(data);
+      const user = await registerUser({
+        email: data.email,
+        password: data.password,
+        password2: data.password2,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        phone: data.phone,
+      });
 
-      authService.saveTokens(response.access, response.refresh);
-
-      // === СОХРАНЯЕМ ИМЯ ПОЛЬЗОВАТЕЛЯ ===
-      // Бэкенд возвращает объект user, сохраняем имя в localStorage
-      if (response.user && response.user.first_name) {
-        localStorage.setItem("uzum_user_name", response.user.first_name);
-      }
+      // Кладём имя в localStorage только для быстрого отображения в шапке.
+      const displayName =
+        user?.first_name || user?.email?.split("@")[0] || "Профиль";
+      authService.saveUserName(displayName);
 
       notifyAuthChange();
       router.push("/profile");
@@ -58,6 +80,7 @@ export default function RegisterForm() {
       setServerError(errorMessage);
     }
   };
+
   return (
     <div className="max-w-md mx-auto mt-10 p-8 bg-white border border-gray-100 rounded-2xl shadow-sm">
       <h1 className="text-2xl font-bold text-center mb-6">Регистрация</h1>
@@ -69,11 +92,12 @@ export default function RegisterForm() {
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* Имя (теперь обязательно) */}
+        {/* Имя */}
         <div>
           <input
             type="text"
-            placeholder="Имя *" // <-- Добавили звездочку
+            placeholder="Имя *"
+            autoComplete="given-name"
             {...register("first_name")}
             className="w-full h-[44px] px-4 border border-gray-200 rounded-lg focus:outline-none focus:border-[#7000FF] transition-colors"
           />
@@ -82,11 +106,26 @@ export default function RegisterForm() {
           )}
         </div>
 
+        {/* Фамилия */}
+        <div>
+          <input
+            type="text"
+            placeholder="Фамилия"
+            autoComplete="family-name"
+            {...register("last_name")}
+            className="w-full h-[44px] px-4 border border-gray-200 rounded-lg focus:outline-none focus:border-[#7000FF] transition-colors"
+          />
+          {errors.last_name && (
+            <p className="text-red-500 text-xs mt-1">{errors.last_name.message}</p>
+          )}
+        </div>
+
         {/* Email */}
         <div>
           <input
             type="email"
             placeholder="Email"
+            autoComplete="email"
             {...register("email")}
             className="w-full h-[44px] px-4 border border-gray-200 rounded-lg focus:outline-none focus:border-[#7000FF] transition-colors"
           />
@@ -95,11 +134,26 @@ export default function RegisterForm() {
           )}
         </div>
 
+        {/* Телефон */}
+        <div>
+          <input
+            type="tel"
+            placeholder="Телефон (+998901234567)"
+            autoComplete="tel"
+            {...register("phone")}
+            className="w-full h-[44px] px-4 border border-gray-200 rounded-lg focus:outline-none focus:border-[#7000FF] transition-colors"
+          />
+          {errors.phone && (
+            <p className="text-red-500 text-xs mt-1">{errors.phone.message}</p>
+          )}
+        </div>
+
         {/* Пароль */}
         <div>
           <input
             type="password"
-            placeholder="Пароль (мин. 6 символов)"
+            placeholder="Пароль (мин. 8 символов)"
+            autoComplete="new-password"
             {...register("password")}
             className="w-full h-[44px] px-4 border border-gray-200 rounded-lg focus:outline-none focus:border-[#7000FF] transition-colors"
           />
@@ -113,6 +167,7 @@ export default function RegisterForm() {
           <input
             type="password"
             placeholder="Повторите пароль"
+            autoComplete="new-password"
             {...register("password2")}
             className="w-full h-[44px] px-4 border border-gray-200 rounded-lg focus:outline-none focus:border-[#7000FF] transition-colors"
           />

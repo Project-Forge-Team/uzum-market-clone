@@ -58,41 +58,36 @@ export default function MainHeader() {
     };
   }, [isCatalogOpen, categories.length]);
 
-  // Профиль: один раз при mount + по событию login/logout (НЕ на каждый pathname)
+  // Профиль: один раз при mount + по событию login/logout (НЕ на каждый pathname).
+  // Токены HttpOnly, поэтому «залогинен ли» определяет только GET /auth/me/.
   const checkAuthAndUser = useCallback(async () => {
-    const isAuth = authService.isAuthenticated();
-    setIsAuthenticated(isAuth);
-
-    if (!isAuth) {
-      setUserName(null);
-      return;
-    }
-
-    const cachedName = localStorage.getItem("uzum_user_name");
-    if (cachedName) setUserName(cachedName);
-
-    // Если имя уже в кэше — не дёргаем /auth/me лишний раз
-    if (cachedName && authService.getAccessToken()) {
-      return;
-    }
-
     try {
       const userData = await fetchMe();
-      if (userData?.first_name) {
-        setUserName(userData.first_name);
-        localStorage.setItem("uzum_user_name", userData.first_name);
+
+      if (userData) {
         setIsAuthenticated(true);
-      } else if (!authService.isAuthenticated()) {
+        const displayName =
+          userData.first_name || userData.email?.split("@")[0] || "Профиль";
+        setUserName(displayName);
+        authService.saveUserName(displayName);
+      } else {
         setIsAuthenticated(false);
         setUserName(null);
+        authService.clearUserState();
       }
     } catch (error) {
       console.error("Ошибка проверки сессии:", error);
+      setIsAuthenticated(false);
+      setUserName(null);
     }
   }, []);
 
   useEffect(() => {
-    checkAuthAndUser();
+    // Небольшой таймаут: eslint-правило не любит синхронный setState
+    // прямо в теле effect, а фактически setState происходит после async fetchMe.
+    const timer = setTimeout(() => {
+      checkAuthAndUser();
+    }, 0);
 
     const onAuthChange = () => {
       checkAuthAndUser();
@@ -103,6 +98,7 @@ export default function MainHeader() {
     window.addEventListener("storage", onAuthChange);
 
     return () => {
+      clearTimeout(timer);
       window.removeEventListener(AUTH_CHANGE_EVENT, onAuthChange);
       window.removeEventListener("storage", onAuthChange);
     };

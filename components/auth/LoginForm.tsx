@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
 
-import { loginUser, fetchMe } from "@/lib/api";
+import { loginUser } from "@/lib/api";
 import { authService, notifyAuthChange } from "@/lib/auth-service";
 
 // 1. Валидация для логина
@@ -39,23 +39,16 @@ export default function LoginForm() {
   const onSubmit = async (data: LoginFormValues) => {
     setServerError(null);
     try {
-      const response = await loginUser(data);
-      authService.saveTokens(response.access, response.refresh);
+      const user = await loginUser(data);
 
-      // Подтягиваем имя сразу после логина (раньше ждали fetchMe в header)
-      try {
-        const me = await fetchMe();
-        if (me?.first_name) {
-          localStorage.setItem("uzum_user_name", me.first_name);
-        }
-      } catch {
-        // имя подтянется при следующем checkAuth
-      }
+      // Имя уже сохранено в cookie сессии; кладём удобное отображение для шапки.
+      const displayName =
+        user?.first_name || user?.email?.split("@")[0] || "Профиль";
+      authService.saveUserName(displayName);
 
       notifyAuthChange();
       router.push(redirect);
       router.refresh();
-      // Было: } catch (err: any) {
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Ошибка при входе";
       setServerError(errorMessage);
@@ -86,6 +79,7 @@ export default function LoginForm() {
           <input
             type="email"
             placeholder="Email"
+            autoComplete="email"
             {...register("email")}
             className="w-full h-[44px] px-4 border border-gray-200 rounded-lg focus:outline-none focus:border-[#7000FF] transition-colors"
           />
@@ -99,6 +93,7 @@ export default function LoginForm() {
           <input
             type="password"
             placeholder="Пароль"
+            autoComplete="current-password"
             {...register("password")}
             className="w-full h-[44px] px-4 border border-gray-200 rounded-lg focus:outline-none focus:border-[#7000FF] transition-colors"
           />

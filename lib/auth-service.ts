@@ -1,36 +1,36 @@
-import Cookies from "js-cookie";
+const USER_NAME_KEY = "uzum_user_name";
 
-const ACCESS_TOKEN_KEY = "uzum_access_token";
-const REFRESH_TOKEN_KEY = "uzum_refresh_token";
-
-const isSecure =
-  typeof window !== "undefined" && window.location.protocol === "https:";
-
-const cookieBase = {
-  path: "/",
-  sameSite: "lax" as const,
-  secure: isSecure,
-};
-
+/**
+ * Токены живут в HttpOnly cookies и JavaScript их не видит.
+ * Поэтому authService хранит только удобный индикатор текущего пользователя
+ * (локальное имя для шапки), а настоящий статус сессии проверяется
+ * через `fetchMe()` (server отдаёт 401, если cookies нет/истекли).
+ */
 export const authService = {
-  saveTokens: (access: string, refresh: string) => {
-    // access ~ 1 час, refresh ~ 7 дней
-    Cookies.set(ACCESS_TOKEN_KEY, access, { ...cookieBase, expires: 1 / 24 });
-    Cookies.set(REFRESH_TOKEN_KEY, refresh, { ...cookieBase, expires: 7 });
+  saveUserName(name: string) {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(USER_NAME_KEY, name);
   },
 
-  getAccessToken: () => Cookies.get(ACCESS_TOKEN_KEY),
-
-  getRefreshToken: () => Cookies.get(REFRESH_TOKEN_KEY),
-
-  /** Авторизован, если есть access или refresh (access можно обновить) */
-  isAuthenticated: () => {
-    return !!(Cookies.get(ACCESS_TOKEN_KEY) || Cookies.get(REFRESH_TOKEN_KEY));
+  getUserName(): string | null {
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem(USER_NAME_KEY);
   },
 
-  clearTokens: () => {
-    Cookies.remove(ACCESS_TOKEN_KEY, { path: "/" });
-    Cookies.remove(REFRESH_TOKEN_KEY, { path: "/" });
+  /** Токены нельзя прочитать из JS, поэтому «авторизован» определяем по API. */
+  isAuthenticated(): boolean {
+    return false;
+  },
+
+  /** Удаляем только локальный пользовательский индикатор (cookies чистит бэкенд). */
+  clearUserState() {
+    if (typeof window === "undefined") return;
+    window.localStorage.removeItem(USER_NAME_KEY);
+  },
+
+  /** Совместимость со старым кодом. */
+  clearTokens() {
+    this.clearUserState();
   },
 };
 

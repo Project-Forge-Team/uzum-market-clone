@@ -123,8 +123,11 @@ POST /api/auth/register|login|logout · GET /api/auth/me · POST /api/auth/passw
 GET  /api/auth/csrf · POST /api/demo/reset
 ```
 
-Старый прокси на Django (`app/api/[...path]/route.ts`) остался в репозитории, но
-приложения не использует его: все вызовы обслуживают локальные обработчики выше.
+Локальные обработчики конкретные, поэтому они всегда выигрывают у catch-all
+прокси `app/api/[...path]/route.ts`. Прокси при этом живой: любой `/api/*`, для
+которого обработчика нет, уходит на `BACKEND_URL` (по умолчанию — старый Django
+на Render, отсюда и 502 в песочнице без сети). Именно через него фронт
+переключится на настоящий бэкенд — план в `docs/BACKEND_SPEC.md`, §10.
 
 ## Структура
 
@@ -136,7 +139,7 @@ lib/                    api.ts (клиент) · session.tsx · cart.tsx · form
 types/product.ts        DTO: Product, Review, ShopOrder, UserProfile, статусы
 scripts/gen-catalog.mjs генератор демо-данных и svg-«фотографий»
 public/                 баннеры, картинки товаров, favicon
-tests/                  Playwright (нужен `npx playwright install`)
+tests/                  e2e.py (55 сквозных проверок) · run-node-tests.mjs · Playwright
 ```
 
 ## Проверка
@@ -144,8 +147,18 @@ tests/                  Playwright (нужен `npx playwright install`)
 ```bash
 npm run lint            # eslint (next/core-web-vitals + react-hooks)
 npx tsc --noEmit        # типы
+npm test                # поднимает app в песочнице и прогон tests/e2e.py (55 шагов)
 npm run build           # продакшен-сборка
 npm start               # прод-режим на :3000
+```
+
+`npm test` ничего не трогает в рабочей копии: демо-база и каталог сборки уезжают
+во временную папку (`UZUM_DB_DIR` / `NEXT_DIST_DIR`), порт берётся свободный,
+процесс гарантированно убивается. Скрипт идемпотентен — можно гонять подряд
+дважды и против уже запущенного сервера:
+
+```bash
+UZUM_BASE_URL=http://127.0.0.1:3000 python3 tests/e2e.py
 ```
 
 ## Чего намеренно нет

@@ -46,9 +46,10 @@ JSON-файл `.data/db.json` в песочнице фронтенда. Нужн
 | Куки | имена и флаги — §3 |
 | Тело запроса | JSON ≤ 256 КБ (кроме multipart — §7) |
 | Rate limit | `auth/login|register|password` — ≥ 10/мин/IP; `products` (запись) ≥ 60/ч/юзер |
+| Health | `GET /api/health` → `{"status":"ok","service":"uzum-market-clone","backend":"local","products":42,"time":"…"}` — readiness-проба для превью/деплоя; **не должна** инициализировать/пересоздавать базу |
 | Стабильность полей | лишние поля разрешены, отсутствующие — ломают UI. Поля из §5 обязательны |
 
-### 2.0 Envelope списка (важно!)
+### 1.1 Envelope списка (важно!)
 
 ```json
 {
@@ -191,12 +192,12 @@ GIN/`pg_trgm` на `title, description, brand` (поиск), btree на `price`.
 `id, order_id fk cascade, status enum, at timestamptz, note varchar(160)`. Только вставка; UPDATE/DELETE
 запретить на уровне прав. Даёт таймлайн во фронтенде без дополнительной логики на клиенте.
 
-### `promo_codes`
+### `promo_codes` *(в демо-сервере таблицы нет — коды захардкожены в `lib/server/actions.ts`; просим сделать таблицу)*
 
 `code pk (upper), percent smallint, min_subtotal integer, label varchar(120), active bool, valid_to null`.
 Сид: `STUDENT10 | 10 | 200000 | "Учебный промокод: −10%"`, `UZUM2026 | 5 | 0 | "Знакомство с маркетплейсом: −5%"`.
 
-### `media_files`
+### `media_files` *(в демо-сервере таблицы нет — файлы лежат на диске в `.data/uploads`; просим сделать таблицу или Object Storage)*
 
 `id, owner_id fk, key unique, filename, content_type, size, width, height, created_at`.
 Отдаётся по `GET /api/uploads/{key}` или напрямую из Object Storage (§7).
@@ -315,7 +316,10 @@ in_stock=1      — stock > 0
 ordering        — price | -price | rating | -rating | new | -created_at | discount | popular
                   (пусто/неизвестно = «рекомендованное»: свой скоринг, но стабильный)
 page, page_size — page_size по умолчанию 20, диапазон 4..120
-status          — active|draft|archived (игнорируется для анонимов, см. «Каталог» выше)
+status          — active|draft|archived, НО: чужие черновики/архив наружу не отдаются.
+                  Для запроса без прав владельца список возвращается пустым (200, count 0),
+                  а владелец магазина получает только СВОИ товары этого статуса (фильтр по
+                  seller подставляется сервером). Реализация в демо: app/api/products/route.ts
 ```
 
 Ответ: envelope + `facets`:
@@ -368,8 +372,8 @@ status          — active|draft|archived (игнорируется для ан�
 
 | метод | путь | детали |
 | --- | --- | --- |
-| GET | `/products/{id}/reviews/` | `{"results":[Review…], "summary":{"count":2,"average":4.5,"breakdown":[…5→1]}}`, новые сверху |
-| POST | `/products/{id}/reviews/` | `{rating, text, pros?, cons?}` → **201** `{"id":88,"updated":false,"detail":"Спасибо за отзыв!"}`; если отзыв уже был → **200** `{"id":88,"updated":true,"detail":"Отзыв обновлён"}` |
+| GET | `/products/{id}/reviews/` | `{"summary":{"count":2,"average":4.5,"breakdown":[…5→1]}, "results":[Review…], "can_review":bool, "purchases":int}` — новые сверху. `can_review` — может ли **текущий** пользователь оставить отзыв (нужна кука), `purchases` — сколько штук товара куплено в не-отменённых заказах (фронт рисует «Куплено N раз») |
+| POST | `/products/{id}/reviews/` | `{rating, text, pros?, cons?}` → **201** `{"id":88,"updated":false,"detail":"Спасибо за отзыв!"}`; если отзыв уже был → **200** `{"id":88,"updated":true,"detail":"Отзыв обновлён"}`. **Шлюз покупки:** нового отзыва без оплаты не бывает — если у пользователя нет ни одного не-отменённого заказа с этим товаром → **403** `{"detail":"Отзыв могут оставить только покупатели, которые уже купили этот товар. …"}`. Свой существующий отзыв можно править всегда (иначе человек не смог бы убрать отзыв после отмены заказа) |
 | DELETE | `/reviews/{id}/` | `{"detail":"Отзыв удалён"}`; 403 — не автор и не продавец |
 | POST | `/reviews/{id}/reply/` | `{"reply":"…"}` → `{"detail":"Ответ опубликован"}`; 403 — не владелец товара |
 
@@ -380,6 +384,8 @@ status          — active|draft|archived (игнорируется для ан�
 ```
 
 `initials` — 1 заглавная буква (фронт рисует аватар), `own` = автор смотрит свой отзыв.
+Отзывов на товар у покупателя может быть ровно один (`UNIQUE(product_id, user_id)`),
+`verified`/`can_review` считаются по одному и тому же правилу «есть не-отменённый заказ с этим товаром».
 
 ### 5.5 Заказы
 
@@ -422,6 +428,7 @@ SellerStats = { "product_count": 1, "draft_count": 1, "review_count": 2, "rating
 | --- | --- | --- |
 | POST | `/uploads/` | `multipart/form-data`, поле **`file`** (только картинка) → 201 `{"url":"/api/uploads/mtemqqsx-b7fd5cc3.png","name":"shot.png"}`; требует куки+CSRF |
 | GET | `/uploads/{key}` | тело картинки, `Content-Type`, `Cache-Control: public, max-age=31536000, immutable` |
+| GET | `/health` | 200 `{status, service, backend, products, time}` — см. §1, только чтение |
 | POST | `/demo/reset/` | вернуть БД к сид-состоянию. Только для авторизованных (анониму 401); на проде рубильник `UZUM_LOCK_DEMO=1` → 403. Фронтная кнопка уже шлёт этот запрос |
 
 `GET /api/sellers/{slug}` и `GET /api/shop/` должны корректно работать **с кукой сессии** — на SSR
@@ -495,10 +502,12 @@ SellerStats = { "product_count": 1, "draft_count": 1, "review_count": 2, "rating
 1. `BACKEND_URL=https://<backend>` — есть в репозитории, используется прокси
    `app/api/[...path]/route.ts` (нормализует трейлинг-слэш, переносит `Set-Cookie` целиком,
    вырезает hop-by-hop). Все браузерные запросы фронта идут через него — менять URL в компонентах не нужно.
-2. Удалить 24 локальных обработчика `app/api/**` (кроме `[...path]`) — иначе они перекроют прокси.
-3. 20 серверных страниц (`app/product/*`, `app/catalog/*`, `app/cabinet/*`, `app/profile/*`, …) сейчас
-   читают `lib/server/catalog.ts` напрямую. Я переведу их на `fetch(BACKEND_URL + …)` с пробросом куки
-   и `next: { revalidate }`.
+2. Удалить **26** локальных обработчиков `app/api/**` (все, кроме `[...path]`) — конкретный путь
+   всегда перекрывает catch-all, поэтому прокси «включится» только после удаления.
+3. Сейчас 51 файл в `app/`, `components/` и `lib/` импортирует `@/lib/server/*` напрямую, из них
+   **20 — это `page.tsx`** (`app/product/*`, `app/catalog/*`, `app/search`, `app/shop/*`, `app/cabinet/*`,
+   `app/profile/*`, `app/sellers`, `app/sell`). Их я переведу на `fetch(BACKEND_URL + …)` с пробросом
+   куки и `next: { revalidate }`; остальные (server-компоненты layout/секции) — тем же способом.
 4. `lib/server/*` (db/catalog/actions/auth/http) после перехода — мусор, удаляется; `types/product.ts`
    остаётся как контракт.
 
@@ -518,10 +527,16 @@ curl -s -b j -c j -H "X-CSRFToken: $c" -H 'Content-Type: application/json' \
 # 4) отзыв дважды → второй ответ updated=true, строка в БД одна
 # 5) чужой товар PATCH/DELETE/status → 403; чужой черновик GET → 404
 # 6) заказ без CSRF-заголовка → 403; без куки auth/me → 401, а не 500
+# 7) GET  /api/products/?status=draft      чужому → 200 count=0, владельцу → только свои
+# 8) POST /api/products/{id}/reviews/ без покупки → 403; с не-отменённым заказом → 201
+#    и в GET /api/products/{id}/reviews/ can_review/purchases меняются соответственно
 ```
 
-Автоматизация на моей стороне: `npm run test:e2e` (Playwright) + прогон сценария из §0 — я его уже
-использовал для локального API, 47 шагов. Если бэкенд проходит те же 47 — интеграция готова.
+Автоматизация на моей стороне: **`npm test`** (`tests/run-node-tests.mjs` поднимает приложение в
+своей песочнице и прогоняет `tests/e2e.py` — **55 проверок**, идемпотентно: можно запускать дважды
+подряд против той же базы) и `npm run test:e2e` (Playwright-смоук по UI). Если бэкенд проходит те же
+55 — интеграция готова; `tests/e2e.py` принимает `UZUM_BASE_URL`, так что его можно гонять прямо
+по твоему API без фронтенда.
 
 ---
 

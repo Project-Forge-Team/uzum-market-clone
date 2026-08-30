@@ -1,13 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import {
-  ChevronRight,
-  Eye,
-  Package,
-  PencilLine,
-  Store,
-} from "lucide-react";
+import { ChevronRight, Eye, Package, PencilLine, Store } from "lucide-react";
 import ProductGallery from "@/components/ProductGallery";
 import BuyPanel from "@/components/product/BuyPanel";
 import ReviewsSection from "@/components/product/ReviewsSection";
@@ -30,7 +24,9 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<Metadata> {
   const { id } = await params;
   const product = await getProductByIdOrSlug(id);
   if (!product) return { title: "Товар не найден" };
@@ -55,14 +51,12 @@ export default async function ProductPage({ params }: PageProps) {
   if (!product) notFound();
 
   const [
-    {
-      results: reviews,
-      summary,
-      can_review: canReview,
-      purchases,
-    },
+    { results: reviews, summary, can_review: canReview, purchases },
     related,
-  ] = await Promise.all([listReviews(product.id, user?.id ?? null), relatedProducts(product, 10)]);
+  ] = await Promise.all([
+    listReviews(product.id, user?.id ?? null),
+    relatedProducts(product, 10),
+  ]);
   const isOwner = !!user && product.seller?.owner_id === user.id;
 
   const characteristics = Object.entries(product.characteristics ?? {});
@@ -75,8 +69,11 @@ export default async function ProductPage({ params }: PageProps) {
         <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl bg-[#FFF4E5] px-4 py-3 text-[13.5px] text-[#9A5B00]">
           <PencilLine size={16} className="shrink-0" />
           <span>
-            Это {product.status === "draft" ? "черновик" : "товар, снятый с продажи"}: его
-            нет в каталоге и поиске, ссылку видите только вы.
+            Это{" "}
+            {product.status === "draft"
+              ? "черновик"
+              : "товар, снятый с продажи"}
+            : его нет в каталоге и поиске, ссылку видите только вы.
           </span>
           <Link
             href={`/cabinet/products/${product.id}`}
@@ -106,7 +103,9 @@ export default async function ProductPage({ params }: PageProps) {
             <ChevronRight size={13} className="text-gray-300" />
           </>
         )}
-        <span className="max-w-[46ch] truncate text-gray-700">{product.title}</span>
+        <span className="max-w-[46ch] truncate text-gray-700">
+          {product.title}
+        </span>
         {product.status !== "active" && (
           <span className="ml-2 rounded-md bg-[#FFF4E5] px-2 py-0.5 text-[11px] font-bold text-[#9A5B00]">
             {product.status === "draft" ? "черновик" : "архив"}
@@ -162,7 +161,10 @@ export default async function ProductPage({ params }: PageProps) {
               <span className="inline-flex items-center gap-1.5">
                 <Package size={14} /> {productsWord(product.stock)} на складе
               </span>
-              <span>Обновлено {new Date(product.updated_at).toLocaleDateString("ru-RU")}</span>
+              <span>
+                Обновлено{" "}
+                {new Date(product.updated_at).toLocaleDateString("ru-RU")}
+              </span>
             </div>
           </section>
         </div>
@@ -200,8 +202,8 @@ export default async function ProductPage({ params }: PageProps) {
             </Link>
             <p className="mt-2.5 text-[11.5px] leading-snug text-muted">
               {product.seller.verified
-                ? "Магазин прошёл проверку документов (в демо — всегда «проверен»)."
-                : "Магазин без верификации: в учебном проекте статус «новый»."}
+                ? "Магазин прошёл проверку документов."
+                : "Новый магазин."}
             </p>
           </aside>
         )}
@@ -227,7 +229,11 @@ export default async function ProductPage({ params }: PageProps) {
                 ? `Категория «${product.category.name}» и товары этого продавца`
                 : undefined
             }
-            href={product.category ? `/catalog/${product.category.slug}` : "/catalog"}
+            href={
+              product.category
+                ? `/catalog/${product.category.slug}`
+                : "/catalog"
+            }
             linkLabel="В категорию"
           />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">

@@ -38,9 +38,8 @@ export default async function OrderDetailPage({
 
       {sp.created === "1" && (
         <div className="rounded-2xl bg-[#EAF7EE] p-4 text-[14px] font-semibold text-green-800 ring-1 ring-green-100">
-          Заказ {order.number} оформлен 🎉 В учебном клоне он сразу появился у
-          продавца — зайдите в кабинет продавца, чтобы перевести заказ на следующий
-          статус.
+          Заказ {order.number} оформлен 🎉 Он сразу появился у продавца —
+          зайдите в кабинет продавца, чтобы перевести заказ на следующий статус.
         </div>
       )}
 

@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Кабинет продавца",
   description:
-    "Учебный кабинет продавца: публикация товаров, остатки, заказы покупателей и ответы на отзывы.",
+    "Управление товарами, остатками, заказами покупателей и отзывами.",
 };
 
 const TABS = [
@@ -41,7 +41,7 @@ export default async function CabinetLayout({
       <header className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-ink px-5 py-4 text-white">
         <div className="min-w-0">
           <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-accent">
-            Кабинет продавца · учебный демо
+            Кабинет продавца
           </p>
           <h1 className="mt-1 truncate text-xl font-bold md:text-2xl">
             {shop ? shop.name : "Магазин ещё не создан"}

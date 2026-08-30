@@ -2,14 +2,20 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, LoaderCircle, RotateCcw, Save, ShieldAlert } from "lucide-react";
+import {
+  KeyRound,
+  LoaderCircle,
+  RotateCcw,
+  Save,
+  ShieldAlert,
+} from "lucide-react";
 import LogoutButton from "@/components/ui/LogoutButton";
 import { changePassword, resetDemoData, updateMe } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { useCart } from "@/lib/cart";
 import type { UserProfile } from "@/types/product";
 
-/** Настройки аккаунта: контакты, пароль и «опасная зона» для демо-данных. */
+/** Настройки аккаунта: контакты, пароль и управление данными. */
 export default function SettingsForm({ user }: { user: UserProfile }) {
   const router = useRouter();
   const { setUser } = useSession();
@@ -22,7 +28,11 @@ export default function SettingsForm({ user }: { user: UserProfile }) {
     email: user.email,
   });
   const [saving, setSaving] = useState(false);
-  const [passwordForm, setPasswordForm] = useState({ current: "", next: "", repeat: "" });
+  const [passwordForm, setPasswordForm] = useState({
+    current: "",
+    next: "",
+    repeat: "",
+  });
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,7 +48,9 @@ export default function SettingsForm({ user }: { user: UserProfile }) {
       showToast("Профиль обновлён");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось сохранить профиль");
+      setError(
+        err instanceof Error ? err.message : "Не удалось сохранить профиль",
+      );
     } finally {
       setSaving(false);
     }
@@ -56,7 +68,9 @@ export default function SettingsForm({ user }: { user: UserProfile }) {
       setPasswordForm({ current: "", next: "", repeat: "" });
       showToast("Пароль изменён");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось изменить пароль");
+      setError(
+        err instanceof Error ? err.message : "Не удалось изменить пароль",
+      );
     } finally {
       setPasswordBusy(false);
     }
@@ -72,33 +86,47 @@ export default function SettingsForm({ user }: { user: UserProfile }) {
             <input
               className={input}
               value={form.first_name}
-              onChange={(event) => setForm({ ...form, first_name: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, first_name: event.target.value })
+              }
             />
           </label>
           <label className="block">
-            <span className="text-[12.5px] font-semibold text-muted">Фамилия</span>
+            <span className="text-[12.5px] font-semibold text-muted">
+              Фамилия
+            </span>
             <input
               className={input}
               value={form.last_name}
-              onChange={(event) => setForm({ ...form, last_name: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, last_name: event.target.value })
+              }
             />
           </label>
           <label className="block">
-            <span className="text-[12.5px] font-semibold text-muted">Email для входа</span>
+            <span className="text-[12.5px] font-semibold text-muted">
+              Email для входа
+            </span>
             <input
               className={input}
               type="email"
               value={form.email}
-              onChange={(event) => setForm({ ...form, email: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, email: event.target.value })
+              }
             />
           </label>
           <label className="block">
-            <span className="text-[12.5px] font-semibold text-muted">Телефон</span>
+            <span className="text-[12.5px] font-semibold text-muted">
+              Телефон
+            </span>
             <input
               className={input}
               value={form.phone}
               placeholder="+998 90 123 45 67"
-              onChange={(event) => setForm({ ...form, phone: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, phone: event.target.value })
+              }
             />
           </label>
         </div>
@@ -115,7 +143,11 @@ export default function SettingsForm({ user }: { user: UserProfile }) {
           disabled={saving}
           className="mt-4 inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13.5px] font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-60"
         >
-          {saving ? <LoaderCircle size={15} className="animate-spin" /> : <Save size={15} />}
+          {saving ? (
+            <LoaderCircle size={15} className="animate-spin" />
+          ) : (
+            <Save size={15} />
+          )}
           Сохранить
         </button>
       </section>
@@ -130,21 +162,27 @@ export default function SettingsForm({ user }: { user: UserProfile }) {
             type="password"
             placeholder="Текущий пароль"
             value={passwordForm.current}
-            onChange={(event) => setPasswordForm({ ...passwordForm, current: event.target.value })}
+            onChange={(event) =>
+              setPasswordForm({ ...passwordForm, current: event.target.value })
+            }
           />
           <input
             className="h-11 w-full rounded-xl border border-line px-3 text-[14px] outline-none focus:border-brand"
             type="password"
             placeholder="Новый, от 8 символов"
             value={passwordForm.next}
-            onChange={(event) => setPasswordForm({ ...passwordForm, next: event.target.value })}
+            onChange={(event) =>
+              setPasswordForm({ ...passwordForm, next: event.target.value })
+            }
           />
           <input
             className="h-11 w-full rounded-xl border border-line px-3 text-[14px] outline-none focus:border-brand"
             type="password"
             placeholder="Повторите новый"
             value={passwordForm.repeat}
-            onChange={(event) => setPasswordForm({ ...passwordForm, repeat: event.target.value })}
+            onChange={(event) =>
+              setPasswordForm({ ...passwordForm, repeat: event.target.value })
+            }
           />
         </div>
         <button
@@ -162,25 +200,26 @@ export default function SettingsForm({ user }: { user: UserProfile }) {
 
       <section className="rounded-2xl bg-white p-5 ring-1 ring-line">
         <h2 className="flex items-center gap-2 text-[15px] font-bold text-ink">
-          <ShieldAlert size={16} className="text-[#B45318]" /> Безопасность и демо
+          <ShieldAlert size={16} className="text-[#B45318]" /> Безопасность
         </h2>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <LogoutButton />
           <button
             type="button"
             onClick={async () => {
-              if (!window.confirm("Вернуть демо-каталог к исходному состоянию?")) return;
+              if (!window.confirm("Вернуть каталог к исходному состоянию?"))
+                return;
               await resetDemoData();
               window.location.reload();
             }}
             className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-line transition-colors hover:bg-surface"
           >
-            <RotateCcw size={14} /> Сбросить демо-данные
+            <RotateCcw size={14} /> Сбросить данные
           </button>
         </div>
         <p className="mt-2 text-[12px] leading-relaxed text-muted">
-          В демо-режиме все аккаунты и товары живут в файле .data/db.json. Сброс
-          вернёт исходный каталог, удалит ваши товары и отзывы.
+          Все аккаунты и товары хранятся локально. Сброс вернёт исходный
+          каталог, удалит ваши товары и отзывы.
         </p>
       </section>
     </div>

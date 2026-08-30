@@ -60,11 +60,14 @@ export default function LoginForm() {
   return (
     <AuthShell
       title="Вход в аккаунт"
-      subtitle="Email и пароль из локальной демо-базы. Ничего не отправляется наружу."
+      subtitle="Введите email и пароль от аккаунта для входа."
       footer={
         <>
           Аккаунта ещё нет?{" "}
-          <Link href={`/register?redirect=${encodeURIComponent(redirect)}`} className="font-bold text-brand hover:underline">
+          <Link
+            href={`/register?redirect=${encodeURIComponent(redirect)}`}
+            className="font-bold text-brand hover:underline"
+          >
             Зарегистрироваться
           </Link>
         </>
@@ -121,8 +124,12 @@ export default function LoginForm() {
         </label>
 
         <label className="flex cursor-pointer items-center gap-2 text-[13px] text-gray-700">
-          <input {...register("remember")} type="checkbox" className="h-4 w-4" />
-          Держать меня в курсе акций (в демо — просто чекбокс)
+          <input
+            {...register("remember")}
+            type="checkbox"
+            className="h-4 w-4"
+          />
+          Держать меня в курсе акций
         </label>
 
         {serverError && (

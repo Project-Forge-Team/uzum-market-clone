@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Продавать на Uzum",
   description:
-    "Как устроен кабинет продавца в учебном клоне: публикация товаров, цены, отзывы и заказы.",
+    "Как устроен кабинет продавца: публикация товаров, цены, отзывы и заказы.",
 };
 
 const STEPS = [
@@ -47,10 +47,26 @@ const STEPS = [
 ];
 
 const RULES = [
-  { icon: BadgeCheck, title: "Честная карточка", text: "Реальные фото, точный остаток и срок доставки" },
-  { icon: Percent, title: "Скидка без обмана", text: "Старая цена должна быть выше текущей — иначе бейдж не покажется" },
-  { icon: ShieldCheck, title: "Возврат 14 дней", text: "Новый товар без следов использования возвращают без вопросов" },
-  { icon: Banknote, title: "Оплата при получении", text: "В демо деньги не списываются: статус меняется вручную" },
+  {
+    icon: BadgeCheck,
+    title: "Честная карточка",
+    text: "Реальные фото, точный остаток и срок доставки",
+  },
+  {
+    icon: Percent,
+    title: "Скидка без обмана",
+    text: "Старая цена должна быть выше текущей — иначе бейдж не покажется",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Возврат 14 дней",
+    text: "Новый товар без следов использования возвращают без вопросов",
+  },
+  {
+    icon: Banknote,
+    title: "Оплата при получении",
+    text: "Uzcard, Humo, Payme — платите при получении",
+  },
 ];
 
 export default async function SellPage() {
@@ -65,13 +81,13 @@ export default async function SellPage() {
               <Store size={13} /> Кабинет продавца
             </p>
             <h1 className="mt-4 text-3xl font-extrabold leading-tight md:text-[44px]">
-              Продавайте на Uzum — <span className="text-accent">без комиссии и</span>{" "}
-              без страха ошибиться
+              Продавайте на Uzum —{" "}
+              <span className="text-accent">без комиссии и</span> без страха
+              ошибиться
             </h1>
             <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-white/70">
-              Это учебный клон маркетплейса: здесь можно пройти весь путь продавца —
-              от загрузки фото до ответа на отзыв и смены статуса заказа. Ошибаться
-              безопасно, данные локальные.
+              Проходите весь путь продавца — от загрузки фото до ответа на отзыв
+              и смены статуса заказа. Ошибаться безопасно.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link
@@ -91,26 +107,39 @@ export default async function SellPage() {
 
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: "активных товаров", value: formatNumber(stats.products) },
+              {
+                label: "активных товаров",
+                value: formatNumber(stats.products),
+              },
               { label: "магазинов", value: String(stats.sellers) },
-              { label: "отзывов покупателей", value: formatNumber(stats.reviews) },
-              { label: "комиссия в демо", value: "0%" },
+              {
+                label: "отзывов покупателей",
+                value: formatNumber(stats.reviews),
+              },
+              { label: "комиссия", value: "0%" },
             ].map((item) => (
-              <div key={item.label} className="rounded-2xl bg-white/10 p-5 ring-1 ring-white/10">
-                <p className="text-[26px] font-extrabold leading-none">{item.value}</p>
+              <div
+                key={item.label}
+                className="rounded-2xl bg-white/10 p-5 ring-1 ring-white/10"
+              >
+                <p className="text-[26px] font-extrabold leading-none">
+                  {item.value}
+                </p>
                 <p className="mt-2 text-[12.5px] text-white/60">{item.label}</p>
               </div>
             ))}
             <p className="col-span-2 rounded-2xl bg-white/5 p-4 text-[12.5px] leading-relaxed text-white/60">
-              В реальном Uzum продавцу нужны ИНН, договор и склад. В клоне всё это
-              опущено: важно понять механику — карточка, заказ, статус, отзыв.
+              Регистрация простая: не нужны ИНН, договор и склад. Поймите
+              механику — карточка, заказ, статус, отзыв.
             </p>
           </div>
         </div>
       </section>
 
       <section className="mx-auto w-full max-w-[1240px] px-4 py-12">
-        <h2 className="text-xl font-bold text-ink md:text-2xl">Как это работает</h2>
+        <h2 className="text-xl font-bold text-ink md:text-2xl">
+          Как это работает
+        </h2>
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {STEPS.map((step, index) => (
             <article
@@ -123,8 +152,12 @@ export default async function SellPage() {
               <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-soft text-brand">
                 <step.icon size={19} />
               </span>
-              <h3 className="mt-3.5 text-[15px] font-bold text-ink">{step.title}</h3>
-              <p className="mt-1.5 text-[13px] leading-relaxed text-muted">{step.text}</p>
+              <h3 className="mt-3.5 text-[15px] font-bold text-ink">
+                {step.title}
+              </h3>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-muted">
+                {step.text}
+              </p>
             </article>
           ))}
         </div>
@@ -133,7 +166,9 @@ export default async function SellPage() {
       <section className="mx-auto w-full max-w-[1240px] px-4 pb-12">
         <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
           <div className="rounded-2xl bg-white p-6 ring-1 ring-line">
-            <h2 className="text-lg font-bold text-ink">Что должно быть в карточке</h2>
+            <h2 className="text-lg font-bold text-ink">
+              Что должно быть в карточке
+            </h2>
             <ul className="mt-4 space-y-3">
               {[
                 "Название: тип + модель + ключевой параметр («Наушники Tunn Pro с ANC»)",
@@ -143,7 +178,10 @@ export default async function SellPage() {
                 "4–6 характеристик: размер, материал, питание, гарантия",
                 "Реальный остаток и срок доставки: «нет в наличии» лучше, чем обещание без товара",
               ].map((item) => (
-                <li key={item} className="flex items-start gap-2.5 text-[14px] leading-relaxed text-gray-700">
+                <li
+                  key={item}
+                  className="flex items-start gap-2.5 text-[14px] leading-relaxed text-gray-700"
+                >
                   <Check size={16} className="mt-0.5 shrink-0 text-brand" />
                   {item}
                 </li>
@@ -163,7 +201,9 @@ export default async function SellPage() {
                 <p className="flex items-center gap-2 text-[14px] font-bold text-ink">
                   <rule.icon size={16} className="text-brand" /> {rule.title}
                 </p>
-                <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted">{rule.text}</p>
+                <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted">
+                  {rule.text}
+                </p>
               </div>
             ))}
             <div className="rounded-2xl bg-brand-soft p-4">
@@ -171,8 +211,9 @@ export default async function SellPage() {
                 <ChartColumn size={16} /> Метрики в кабинете
               </p>
               <p className="mt-1.5 text-[12.5px] leading-relaxed text-gray-700">
-                Просмотры карточек, средний рейтинг, число заказов и «выручка» считаются
-                по локальной базе — это реальные данные ваших товаров.
+                Просмотры карточек, средний рейтинг, число заказов и «выручка»
+                считаются по вашим данным — это реальные показатели ваших
+                товаров.
               </p>
             </div>
           </aside>

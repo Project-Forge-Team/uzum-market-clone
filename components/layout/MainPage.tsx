@@ -2,7 +2,11 @@ import HeroBanner from "@/components/layout/HeroBanner";
 import CategoryTiles from "@/components/layout/CategoryTiles";
 import RecommendedSection from "@/components/layout/RecommendedSection";
 import SpecialOffersSection from "@/components/layout/SpecialOffersSection";
-import { SellerPromo, ShopsRow, TrustStrip } from "@/components/layout/HomeExtras";
+import {
+  SellerPromo,
+  ShopsRow,
+  TrustStrip,
+} from "@/components/layout/HomeExtras";
 import {
   listCategories,
   listProducts,
@@ -30,7 +34,7 @@ export default async function MainPage() {
       {/* Заголовок первого уровня на главной: виден скринридерам и поисковикам,
           но не мешает визуальному «как у маркетплейса» первому экрану. */}
       <h1 className="sr-only">
-        Uzum Market — учебный клон маркетплейса: {stats.products} товаров, скидки и рассрочка
+        Uzum Market — каталог товаров, скидки и рассрочка
       </h1>
       <HeroBanner quickCategories={categories.slice(0, 8)} />
       <CategoryTiles categories={categories} />

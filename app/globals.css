@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * Дизайн-токены учебного клона Uzum.
+ * Дизайн-токены Uzum.
  * В Tailwind v4 палитра объявляется здесь, а не в tailwind.config.js,
  * поэтому в разметке можно писать bg-brand / text-ink / bg-accent.
  */

@@ -7,7 +7,8 @@ import { listSellers } from "@/lib/api-server";
 export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Магазины",
-  description: "Продавцы учебного маркетплейса: рейтинг, число товаров и страница магазина.",
+  description:
+    "Продавцы маркетплейса: рейтинг, число товаров и страница магазина.",
 };
 
 export default async function SellersPage() {
@@ -26,8 +27,8 @@ export default async function SellersPage() {
       <div className="mt-8 flex flex-wrap items-center gap-3 rounded-2xl bg-brand-soft p-5">
         <Store size={20} className="text-brand" />
         <p className="text-[14px] font-medium text-ink">
-          Хотите свой магазин? Регистрация покупателя уже создаёт вам магазин — можно
-          сразу выкладывать товары.
+          Хотите свой магазин? Регистрация покупателя уже создаёт вам магазин —
+          можно сразу выкладывать товары.
         </p>
         <Link
           href="/cabinet/products/new"

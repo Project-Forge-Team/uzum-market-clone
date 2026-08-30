@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronDown, MapPin, Store, LifeBuoy, ClipboardList } from "lucide-react";
+import {
+  ChevronDown,
+  MapPin,
+  Store,
+  LifeBuoy,
+  ClipboardList,
+} from "lucide-react";
 import { useStoredValue } from "@/lib/use-stored-value";
 
 const CITIES = [
@@ -75,7 +81,7 @@ export default function TopBar() {
 
         <div className="hidden items-center gap-2 text-[13px] font-semibold text-brand md:flex">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent-dark" />
-          Бесплатная доставка от 500 000 сум — учебный демо-режим
+          Бесплатная доставка от 500 000 сум
         </div>
 
         <div className="flex items-center gap-4 sm:gap-5">
@@ -86,7 +92,10 @@ export default function TopBar() {
             >
               <Store size={14} /> Стать продавцом
             </Link>
-            <Link href="/help" className="flex items-center gap-1.5 transition-colors hover:text-ink">
+            <Link
+              href="/help"
+              className="flex items-center gap-1.5 transition-colors hover:text-ink"
+            >
               <LifeBuoy size={14} /> Вопрос-ответ
             </Link>
             <Link

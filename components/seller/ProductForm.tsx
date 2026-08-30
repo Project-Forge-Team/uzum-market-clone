@@ -63,10 +63,12 @@ function fromProduct(product: Product, categories: Category[]): DraftState {
     delivery_time: product.delivery_time || "Завтра",
     brand: product.brand ?? "",
     images: product.images?.length ? product.images : [product.image],
-    specs: Object.entries(product.characteristics ?? {}).map(([key, value]) => ({
-      key,
-      value,
-    })),
+    specs: Object.entries(product.characteristics ?? {}).map(
+      ([key, value]) => ({
+        key,
+        value,
+      }),
+    ),
     status: product.status,
     is_ad: product.is_ad,
   };
@@ -109,8 +111,8 @@ export default function ProductForm({
   const { refresh } = useSession();
   const fileInput = useRef<HTMLInputElement | null>(null);
 
-  const [draft, setDraft] = useState<DraftState>(
-    () => (product ? fromProduct(product, categories) : emptyDraft(categories)),
+  const [draft, setDraft] = useState<DraftState>(() =>
+    product ? fromProduct(product, categories) : emptyDraft(categories),
   );
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -140,7 +142,10 @@ export default function ProductForm({
         oldPrice > price && oldPrice > 0
           ? Math.round(((oldPrice - price) / oldPrice) * 100)
           : 0,
-      monthly_payment: price > 0 ? { months: 12, per_month: Math.ceil(price / 12), overpay: 0 } : null,
+      monthly_payment:
+        price > 0
+          ? { months: 12, per_month: Math.ceil(price / 12), overpay: 0 }
+          : null,
       rating: product?.rating ?? 0,
       reviews_count: product?.reviews_count ?? 0,
       delivery_time: draft.delivery_time,
@@ -157,23 +162,31 @@ export default function ProductForm({
       updated_at: new Date().toISOString(),
       seller: null,
       category: category
-        ? { id: category.id, name: category.name, slug: category.slug, emoji: category.emoji }
+        ? {
+            id: category.id,
+            name: category.name,
+            slug: category.slug,
+            emoji: category.emoji,
+          }
         : null,
     };
   }, [draft, categories, product]);
 
   const validate = (): boolean => {
     const next: Record<string, string> = {};
-    if (draft.title.trim().length < 8) next.title = "Минимум 8 символов — пишите как в объявлении";
+    if (draft.title.trim().length < 8)
+      next.title = "Минимум 8 символов — пишите как в объявлении";
     if (draft.description.trim().length < 20)
       next.description = "Опишите товар подробнее: 20+ символов";
     const price = Number(draft.price);
-    if (!Number.isFinite(price) || price <= 0) next.price = "Укажите цену в сумах";
+    if (!Number.isFinite(price) || price <= 0)
+      next.price = "Укажите цену в сумах";
     const old = Number(draft.old_price || 0);
     if (draft.old_price && (!(old > price) || !Number.isFinite(old)))
       next.old_price = "Старая цена должна быть выше текущей";
     const stock = Number(draft.stock);
-    if (!Number.isFinite(stock) || stock < 0) next.stock = "Сколько штук на складе?";
+    if (!Number.isFinite(stock) || stock < 0)
+      next.stock = "Сколько штук на складе?";
     if (!draft.category_id) next.category_id = "Выберите категорию";
     if (draft.images.length === 0) next.images = "Добавьте хотя бы одно фото";
     setErrors(next);
@@ -237,9 +250,13 @@ export default function ProductForm({
         added.push(result.url);
       }
       set("images", [...draft.images, ...added].slice(0, 8));
-      showToast(added.length ? `Загружено фото: ${added.length}` : "Файл не подошёл");
+      showToast(
+        added.length ? `Загружено фото: ${added.length}` : "Файл не подошёл",
+      );
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : "Не удалось загрузить файл");
+      setServerError(
+        err instanceof Error ? err.message : "Не удалось загрузить файл",
+      );
     } finally {
       setUploading(false);
     }
@@ -270,8 +287,8 @@ export default function ProductForm({
           <Store size={22} className="text-accent" />
           <h2 className="mt-3 text-lg font-bold">Сначала создадим магазин</h2>
           <p className="mt-1.5 max-w-lg text-[13.5px] leading-relaxed text-white/70">
-            На учебном маркетплейсе магазин есть у каждого аккаунта. Осталось дать ему
-            название — оно будет вид покупателям в карточках товара.
+            Магазин есть у каждого аккаунта. Осталось дать ему название — оно
+            будет видно покупателям в карточках товара.
           </p>
           <CreateShopInline
             value={shopNameDraft}
@@ -296,7 +313,8 @@ export default function ProductForm({
                 {editing ? "Редактирование товара" : "Новый товар"}
               </h1>
               <p className="text-[13px] text-muted">
-                Магазин: {shopName} · товар увидят в каталоге сразу после публикации
+                Магазин: {shopName} · товар увидят в каталоге сразу после
+                публикации
               </p>
             </div>
             {editing && product && (
@@ -323,7 +341,10 @@ export default function ProductForm({
                     placeholder="Беспроводные наушники AudioLite с шумоподавлением"
                     onChange={(event) => set("title", event.target.value)}
                   />
-                  <FieldError message={errors.title} hint={`${draft.title.length}/120 символов`} />
+                  <FieldError
+                    message={errors.title}
+                    hint={`${draft.title.length}/120 символов`}
+                  />
                 </label>
 
                 <label className="mt-3 block">
@@ -363,7 +384,10 @@ export default function ProductForm({
                       inputMode="numeric"
                       value={draft.old_price}
                       onChange={(event) =>
-                        set("old_price", event.target.value.replace(/[^\d]/g, ""))
+                        set(
+                          "old_price",
+                          event.target.value.replace(/[^\d]/g, ""),
+                        )
                       }
                       placeholder="необязательно"
                     />
@@ -386,7 +410,9 @@ export default function ProductForm({
                     <select
                       className={`${field} bg-white ${errors.category_id ? "border-red-400" : ""}`}
                       value={draft.category_id}
-                      onChange={(event) => set("category_id", event.target.value)}
+                      onChange={(event) =>
+                        set("category_id", event.target.value)
+                      }
                     >
                       {categories.map((cat) => (
                         <option key={cat.id} value={cat.id}>
@@ -403,7 +429,9 @@ export default function ProductForm({
                     <select
                       className={`${field} bg-white`}
                       value={draft.delivery_time}
-                      onChange={(event) => set("delivery_time", event.target.value)}
+                      onChange={(event) =>
+                        set("delivery_time", event.target.value)
+                      }
                     >
                       {DELIVERY_OPTIONS.map((option) => (
                         <option key={option} value={option}>
@@ -445,7 +473,11 @@ export default function ProductForm({
                         key={`${src}-${index}`}
                         className="group relative aspect-square overflow-hidden rounded-xl bg-surface ring-1 ring-line"
                       >
-                        <ProductImage src={src} alt={`Фото ${index + 1}`} sizes="160px" />
+                        <ProductImage
+                          src={src}
+                          alt={`Фото ${index + 1}`}
+                          sizes="160px"
+                        />
                         <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-white/90 px-1.5 py-1 opacity-0 transition-opacity group-hover:opacity-100">
                           <button
                             type="button"
@@ -540,10 +572,14 @@ export default function ProductForm({
 
               <section className="rounded-2xl bg-white p-5 ring-1 ring-line">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-[15px] font-bold text-ink">Характеристики</h2>
+                  <h2 className="text-[15px] font-bold text-ink">
+                    Характеристики
+                  </h2>
                   <button
                     type="button"
-                    onClick={() => set("specs", [...draft.specs, { key: "", value: "" }])}
+                    onClick={() =>
+                      set("specs", [...draft.specs, { key: "", value: "" }])
+                    }
                     className="inline-flex items-center gap-1 rounded-lg bg-brand-soft px-3 py-1.5 text-[12.5px] font-bold text-brand transition-colors hover:bg-brand-border"
                   >
                     <Plus size={13} /> Строка
@@ -560,7 +596,10 @@ export default function ProductForm({
                         maxLength={40}
                         onChange={(event) => {
                           const specs = [...draft.specs];
-                          specs[index] = { ...specs[index], key: event.target.value };
+                          specs[index] = {
+                            ...specs[index],
+                            key: event.target.value,
+                          };
                           set("specs", specs);
                         }}
                       />
@@ -571,14 +610,20 @@ export default function ProductForm({
                         maxLength={120}
                         onChange={(event) => {
                           const specs = [...draft.specs];
-                          specs[index] = { ...specs[index], value: event.target.value };
+                          specs[index] = {
+                            ...specs[index],
+                            value: event.target.value,
+                          };
                           set("specs", specs);
                         }}
                       />
                       <button
                         type="button"
                         onClick={() =>
-                          set("specs", draft.specs.filter((_, i) => i !== index))
+                          set(
+                            "specs",
+                            draft.specs.filter((_, i) => i !== index),
+                          )
                         }
                         className="grid h-10 w-10 place-items-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
                         aria-label="Удалить строку"
@@ -589,7 +634,8 @@ export default function ProductForm({
                   ))}
                   {draft.specs.length === 0 && (
                     <li className="rounded-lg bg-surface/70 px-3 py-2.5 text-[13px] text-muted">
-                      Заполните 3–6 характеристик: карточки с ними покупают заметно чаще.
+                      Заполните 3–6 характеристик: карточки с ними покупают
+                      заметно чаще.
                     </li>
                   )}
                 </ul>
@@ -626,7 +672,7 @@ export default function ProductForm({
                     onChange={(event) => set("is_ad", event.target.checked)}
                     className="h-4 w-4"
                   />
-                  Отметить как рекламный (в демо покажет бейдж «реклама» в карточке)
+                  Отметить как рекламный
                 </label>
               </section>
             </div>
@@ -664,8 +710,8 @@ export default function ProductForm({
                   {editing ? "Сохранить изменения" : "Опубликовать товар"}
                 </button>
                 <p className="mt-2 text-[11.5px] leading-snug text-muted">
-                  Данные проверяются на сервере: название от 8 символов, описание от 20,
-                  цена больше нуля, минимум одно фото.
+                  Данные проверяются на сервере: название от 8 символов,
+                  описание от 20, цена больше нуля, минимум одно фото.
                 </p>
               </div>
 
@@ -693,7 +739,9 @@ export default function ProductForm({
                       } catch (err) {
                         setBusy(false);
                         setServerError(
-                          err instanceof Error ? err.message : "Не удалось удалить товар",
+                          err instanceof Error
+                            ? err.message
+                            : "Не удалось удалить товар",
                         );
                       }
                     }}
@@ -714,7 +762,9 @@ export default function ProductForm({
 function FieldError({ message, hint }: { message?: string; hint?: string }) {
   if (!message && !hint) return null;
   return (
-    <p className={`mt-1 text-[12px] ${message ? "font-semibold text-red-600" : "text-muted"}`}>
+    <p
+      className={`mt-1 text-[12px] ${message ? "font-semibold text-red-600" : "text-muted"}`}
+    >
       {message ?? hint}
     </p>
   );
@@ -742,7 +792,11 @@ function CreateShopInline({
         placeholder="Название магазина, например «Мастерская Audio»"
         className="h-11 w-full rounded-xl border border-white/20 bg-white/10 px-3 text-[14px] text-white placeholder:text-white/40 outline-none focus:border-accent"
       />
-      {error && <p className="mt-2 text-[12.5px] font-semibold text-[#FFC9C9]">{error}</p>}
+      {error && (
+        <p className="mt-2 text-[12.5px] font-semibold text-[#FFC9C9]">
+          {error}
+        </p>
+      )}
       <button
         type="button"
         disabled={busy || value.trim().length < 3}
@@ -754,7 +808,9 @@ function CreateShopInline({
             await onCreated();
             showToast("Магазин создан");
           } catch (err) {
-            setError(err instanceof Error ? err.message : "Не удалось создать магазин");
+            setError(
+              err instanceof Error ? err.message : "Не удалось создать магазин",
+            );
             setBusy(false);
           }
         }}
@@ -763,7 +819,7 @@ function CreateShopInline({
         {busy ? "Создаём…" : "Создать магазин"}
       </button>
       <p className="mt-2 text-[12px] text-white/50">
-        В демо-аккаунте seller@uzum.uz магазин уже создан — можно войти им и публиковать
+        Аккаунт с магазином уже создан — войдите seller@uzum.uz и публикуйте
         товары сразу.
       </p>
     </div>
@@ -800,7 +856,8 @@ function PreviewCard({ product }: { product: Product }) {
         {product.title}
       </p>
       <p className="mt-1.5 text-[11.5px] text-muted">
-        {product.category?.name ?? "без категории"} · доставка {product.delivery_time}
+        {product.category?.name ?? "без категории"} · доставка{" "}
+        {product.delivery_time}
       </p>
     </div>
   );

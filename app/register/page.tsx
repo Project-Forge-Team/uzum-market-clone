@@ -4,7 +4,7 @@ import RegisterForm from "@/components/auth/RegisterForm";
 
 export const metadata: Metadata = {
   title: "Регистрация",
-  description: "Создайте аккаунт покупателя и магазин в учебном клоне Uzum Market.",
+  description: "Создайте аккаунт покупателя и магазин в Uzum Market.",
 };
 
 export default function RegisterPage() {

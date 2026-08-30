@@ -22,7 +22,7 @@ export default function DemoAccounts({
       >
         <FlaskConical size={16} className="shrink-0 text-brand" />
         <span className="flex-1 text-[13px] font-semibold text-ink">
-          Демо-аккаунты: нажмите, чтобы заполнить форму
+          Быстрый вход: нажмите, чтобы заполнить форму
         </span>
         <ChevronDown
           size={15}
@@ -43,10 +43,16 @@ export default function DemoAccounts({
                 className="w-full rounded-xl bg-white px-3 py-2.5 text-left transition-colors hover:ring-1 hover:ring-brand-border"
               >
                 <span className="flex items-center justify-between gap-2">
-                  <span className="text-[13px] font-bold text-ink">{account.role}</span>
-                  <span className="font-mono text-[11.5px] text-brand">{account.email}</span>
+                  <span className="text-[13px] font-bold text-ink">
+                    {account.role}
+                  </span>
+                  <span className="font-mono text-[11.5px] text-brand">
+                    {account.email}
+                  </span>
                 </span>
-                <span className="mt-0.5 block text-[12px] text-muted">{account.hint}</span>
+                <span className="mt-0.5 block text-[12px] text-muted">
+                  {account.hint}
+                </span>
                 <span className="mt-1 block font-mono text-[11px] text-gray-400">
                   пароль: {account.password}
                 </span>

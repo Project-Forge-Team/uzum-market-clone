@@ -4,7 +4,7 @@ import LoginForm from "@/components/auth/LoginForm";
 
 export const metadata: Metadata = {
   title: "Вход",
-  description: "Вход в личный кабинет учебного клона Uzum Market.",
+  description: "Вход в личный кабинет Uzum Market.",
 };
 
 export default function LoginPage() {

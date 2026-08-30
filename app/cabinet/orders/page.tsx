@@ -17,8 +17,7 @@ export default async function CabinetOrdersPage() {
           <span className="font-medium text-muted">({orders.length})</span>
         </h2>
         <p className="mt-0.5 text-[13px] text-muted">
-          В демо-режиме заказы создаются без платежей, но ведутся по-настоящему:
-          статусы, история и списание остатков.
+          Заказы ведутся с полной историей статусов и списанием остатков.
         </p>
       </div>
       <SellerOrders initial={orders} />

@@ -18,7 +18,11 @@ import EmptyState from "@/components/ui/EmptyState";
 import { createOrder, previewTotals } from "@/lib/api";
 import { useCart } from "@/lib/cart";
 import { useSession } from "@/lib/session";
-import { COURIER_COST, FREE_DELIVERY_FROM, useCartTotals } from "@/lib/use-live-cart";
+import {
+  COURIER_COST,
+  FREE_DELIVERY_FROM,
+  useCartTotals,
+} from "@/lib/use-live-cart";
 import { formatNumber } from "@/lib/format";
 import type { UserProfile } from "@/types/product";
 
@@ -30,9 +34,24 @@ const PICKUP_POINTS = [
 ];
 
 const PAYMENTS = [
-  { value: "card", label: "Картой при получении", icon: CreditCard, hint: "Uzcard · Humo · Payme" },
-  { value: "cash", label: "Наличными курьеру", icon: Banknote, hint: "Только для курьерской доставки" },
-  { value: "installment", label: "Рассрочка 0%", icon: ShieldCheck, hint: "12 месяцев, без переплаты" },
+  {
+    value: "card",
+    label: "Картой при получении",
+    icon: CreditCard,
+    hint: "Uzcard · Humo · Payme",
+  },
+  {
+    value: "cash",
+    label: "Наличными курьеру",
+    icon: Banknote,
+    hint: "Только для курьерской доставки",
+  },
+  {
+    value: "installment",
+    label: "Рассрочка 0%",
+    icon: ShieldCheck,
+    hint: "12 месяцев, без переплаты",
+  },
 ] as const;
 
 /**
@@ -51,7 +70,8 @@ export default function CheckoutView({
   const { available, subtotal, loading } = useCartTotals();
 
   const [delivery, setDelivery] = useState<"courier" | "pickup">("courier");
-  const [payment, setPayment] = useState<(typeof PAYMENTS)[number]["value"]>("card");
+  const [payment, setPayment] =
+    useState<(typeof PAYMENTS)[number]["value"]>("card");
   const [address, setAddress] = useState(
     initialUser ? "г. Ташкент, ул. Шахристанская, 42, кв. 15" : "",
   );
@@ -140,20 +160,26 @@ export default function CheckoutView({
       clear();
       router.push(`/profile/orders/${order.id}?created=1`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось оформить заказ");
+      setError(
+        err instanceof Error ? err.message : "Не удалось оформить заказ",
+      );
       setBusy(false);
     }
   };
 
   const discount = totals?.discount ?? 0;
-  const deliveryCost = totals?.delivery_cost ?? (delivery === "courier" && subtotal < FREE_DELIVERY_FROM ? COURIER_COST : 0);
+  const deliveryCost =
+    totals?.delivery_cost ??
+    (delivery === "courier" && subtotal < FREE_DELIVERY_FROM
+      ? COURIER_COST
+      : 0);
   const total = totals?.total ?? subtotal - discount + deliveryCost;
 
   return (
     <div className="mx-auto w-full max-w-[1240px] px-4 py-6">
       <h1 className="text-2xl font-bold text-ink">Оформление заказа</h1>
       <p className="mt-1 text-[13.5px] text-muted">
-        Шаги: товары → доставка → оплата. Всё работает на локальном API, деньги не списываются.
+        Шаги: товары → доставка → оплата
       </p>
 
       <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_352px]">
@@ -161,11 +187,26 @@ export default function CheckoutView({
           <Card step={1} title="Контакты" icon={<UserIcon />}>
             {user ? (
               <div className="grid gap-2 sm:grid-cols-2">
-                <Field label="Имя" value={[user.first_name, user.last_name].filter(Boolean).join(" ") || user.email} readOnly />
-                <Field label="Телефон" value={user.phone || "не указан"} readOnly />
+                <Field
+                  label="Имя"
+                  value={
+                    [user.first_name, user.last_name]
+                      .filter(Boolean)
+                      .join(" ") || user.email
+                  }
+                  readOnly
+                />
+                <Field
+                  label="Телефон"
+                  value={user.phone || "не указан"}
+                  readOnly
+                />
                 <p className="sm:col-span-2 text-[12.5px] text-muted">
                   Контакты взяты из профиля — поменять можно в{" "}
-                  <Link href="/profile/settings" className="font-semibold text-brand hover:underline">
+                  <Link
+                    href="/profile/settings"
+                    className="font-semibold text-brand hover:underline"
+                  >
                     настройках
                   </Link>
                   .
@@ -173,9 +214,14 @@ export default function CheckoutView({
               </div>
             ) : (
               <div className="rounded-xl bg-brand-soft p-4">
-                <p className="text-[14px] font-semibold text-ink">Заказ оформляют только аккаунты</p>
+                <p className="text-[14px] font-semibold text-ink">
+                  Заказ оформляют только аккаунты
+                </p>
                 <p className="mt-1 text-[13px] text-muted">
-                  В учебном проекте регистрация занимает минуту, а демо-аккаунты уже созданы.
+                  Зарегистрируйтесь — это займёт минуту.
+                </p>
+                <p className="mt-1 text-[13px] text-muted">
+                  Зарегистрируйтесь — это займёт минуту.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Link
@@ -197,10 +243,20 @@ export default function CheckoutView({
 
           <Card step={2} title="Доставка" icon={<MapPin />}>
             <div className="grid gap-2 sm:grid-cols-2">
-              {([
-                { value: "courier", label: "Курьер до двери", hint: `от ${formatNumber(COURIER_COST)} сум, бесплатно от ${formatNumber(FREE_DELIVERY_FROM)}` },
-                { value: "pickup", label: "Пункт выдачи", hint: "бесплатно, заберите в течение 3 дней" },
-              ] as const).map((option) => (
+              {(
+                [
+                  {
+                    value: "courier",
+                    label: "Курьер до двери",
+                    hint: `от ${formatNumber(COURIER_COST)} сум, бесплатно от ${formatNumber(FREE_DELIVERY_FROM)}`,
+                  },
+                  {
+                    value: "pickup",
+                    label: "Пункт выдачи",
+                    hint: "бесплатно, заберите в течение 3 дней",
+                  },
+                ] as const
+              ).map((option) => (
                 <button
                   key={option.value}
                   type="button"
@@ -212,17 +268,25 @@ export default function CheckoutView({
                   }`}
                 >
                   <span className="flex items-center gap-2 text-[14px] font-semibold text-ink">
-                    {option.value === "courier" ? <Store size={15} /> : <Package size={15} />}
+                    {option.value === "courier" ? (
+                      <Store size={15} />
+                    ) : (
+                      <Package size={15} />
+                    )}
                     {option.label}
                   </span>
-                  <span className="mt-1 block text-[12.5px] text-muted">{option.hint}</span>
+                  <span className="mt-1 block text-[12.5px] text-muted">
+                    {option.hint}
+                  </span>
                 </button>
               ))}
             </div>
 
             {delivery === "courier" ? (
               <label className="mt-3 block">
-                <span className="text-[12.5px] font-semibold text-muted">Адрес доставки</span>
+                <span className="text-[12.5px] font-semibold text-muted">
+                  Адрес доставки
+                </span>
                 <input
                   value={address}
                   onChange={(event) => setAddress(event.target.value)}
@@ -232,7 +296,9 @@ export default function CheckoutView({
               </label>
             ) : (
               <label className="mt-3 block">
-                <span className="text-[12.5px] font-semibold text-muted">Пункт выдачи</span>
+                <span className="text-[12.5px] font-semibold text-muted">
+                  Пункт выдачи
+                </span>
                 <select
                   value={pickupPoint}
                   onChange={(event) => setPickupPoint(event.target.value)}
@@ -248,7 +314,9 @@ export default function CheckoutView({
             )}
 
             <label className="mt-3 block">
-              <span className="text-[12.5px] font-semibold text-muted">Комментарий курьеру</span>
+              <span className="text-[12.5px] font-semibold text-muted">
+                Комментарий курьеру
+              </span>
               <textarea
                 value={comment}
                 onChange={(event) => setComment(event.target.value)}
@@ -263,7 +331,8 @@ export default function CheckoutView({
           <Card step={3} title="Оплата" icon={<CreditCard />}>
             <div className="space-y-2">
               {PAYMENTS.map((option) => {
-                const disabled = option.value === "cash" && delivery === "pickup";
+                const disabled =
+                  option.value === "cash" && delivery === "pickup";
                 return (
                   <button
                     key={option.value}
@@ -280,19 +349,27 @@ export default function CheckoutView({
                       <option.icon size={17} />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[14px] font-semibold text-ink">{option.label}</span>
+                      <span className="block text-[14px] font-semibold text-ink">
+                        {option.label}
+                      </span>
                       <span className="block text-[12.5px] text-muted">
                         {disabled ? "недоступно для самовывоза" : option.hint}
                       </span>
                     </span>
-                    {payment === option.value && <Check size={17} className="text-brand" />}
+                    {payment === option.value && (
+                      <Check size={17} className="text-brand" />
+                    )}
                   </button>
                 );
               })}
             </div>
           </Card>
 
-          <Card step={4} title="Промокод" icon={<span className="text-[15px] font-black">%</span>}>
+          <Card
+            step={4}
+            title="Промокод"
+            icon={<span className="text-[15px] font-black">%</span>}
+          >
             <div className="flex flex-wrap gap-2">
               <input
                 value={promo}
@@ -301,7 +378,8 @@ export default function CheckoutView({
                 className="h-11 min-w-[180px] flex-1 rounded-xl border border-line px-3 text-[14px] uppercase outline-none focus:border-brand"
               />
               <span className="text-[12.5px] leading-snug text-muted sm:self-center">
-                Демо-коды: <b>STUDENT10</b> (−10% от 200 000) и <b>UZUM2026</b> (−5%)
+                Пробные коды: <b>STUDENT10</b> (−10% от 200 000) и{" "}
+                <b>UZUM2026</b> (−5%)
               </span>
             </div>
             {totals?.promo_label && (
@@ -320,11 +398,19 @@ export default function CheckoutView({
                 <li key={line.id} className="flex gap-2.5">
                   <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-surface">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={line.image} alt={line.title} className="h-full w-full object-contain" />
+                    <img
+                      src={line.image}
+                      alt={line.title}
+                      className="h-full w-full object-contain"
+                    />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-medium text-ink">{line.title}</span>
-                    <span className="block text-[12px] text-muted">{line.qty} × {formatNumber(line.price)}</span>
+                    <span className="block truncate text-[13px] font-medium text-ink">
+                      {line.title}
+                    </span>
+                    <span className="block text-[12px] text-muted">
+                      {line.qty} × {formatNumber(line.price)}
+                    </span>
                   </span>
                 </li>
               ))}
@@ -338,20 +424,28 @@ export default function CheckoutView({
               {discount > 0 && (
                 <div className="flex justify-between">
                   <dt className="text-muted">Скидка по промокоду</dt>
-                  <dd className="font-semibold text-green-600">−{formatNumber(discount)}</dd>
+                  <dd className="font-semibold text-green-600">
+                    −{formatNumber(discount)}
+                  </dd>
                 </div>
               )}
               <div className="flex justify-between">
                 <dt className="text-muted">Доставка</dt>
                 <dd className="font-semibold">
-                  {deliveryCost === 0 ? "бесплатно" : `${formatNumber(deliveryCost)} сум`}
+                  {deliveryCost === 0
+                    ? "бесплатно"
+                    : `${formatNumber(deliveryCost)} сум`}
                 </dd>
               </div>
             </dl>
 
             <div className="mt-3 flex items-baseline justify-between border-t border-line pt-3">
-              <span className="text-[14px] font-semibold text-gray-700">К оплате</span>
-              <span className="text-[22px] font-extrabold text-ink">{formatNumber(total)}</span>
+              <span className="text-[14px] font-semibold text-gray-700">
+                К оплате
+              </span>
+              <span className="text-[22px] font-extrabold text-ink">
+                {formatNumber(total)}
+              </span>
             </div>
 
             {error && (
@@ -366,12 +460,17 @@ export default function CheckoutView({
               disabled={busy}
               className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand text-[15px] font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-60"
             >
-              {busy ? <LoaderCircle size={17} className="animate-spin" /> : null}
-              {busy ? "Оформляем…" : user ? "Подтвердить заказ" : "Войти и оформить"}
+              {busy ? (
+                <LoaderCircle size={17} className="animate-spin" />
+              ) : null}
+              {busy
+                ? "Оформляем…"
+                : user
+                  ? "Подтвердить заказ"
+                  : "Войти и оформить"}
             </button>
             <p className="mt-2.5 text-[11.5px] leading-snug text-muted">
-              Нажимая кнопку, вы соглашаетесь с учебным характером сделки: товары не
-              отправляются, платежи не проводятся.
+              Нажимая кнопку, вы соглашаетесь с условиями оформления заказа.
             </p>
           </div>
         </aside>

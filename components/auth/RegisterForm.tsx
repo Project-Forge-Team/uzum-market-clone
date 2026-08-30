@@ -31,7 +31,7 @@ const registerSchema = z
     password2: z.string().min(8, "Повторите пароль"),
     shop_name: z.string().max(60, "Не длиннее 60 символов").optional(),
     terms: z.literal(true, {
-      error: "Нужно согласиться с правилами учебного проекта",
+      error: "Нужно подтвердить согласие",
     }),
   })
   .refine((data) => data.password === data.password2, {
@@ -83,7 +83,9 @@ export default function RegisterForm() {
       router.push(redirect.startsWith("/") ? redirect : "/profile");
       router.refresh();
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : "Не удалось зарегистрироваться");
+      setServerError(
+        err instanceof Error ? err.message : "Не удалось зарегистрироваться",
+      );
     }
   };
 
@@ -91,7 +93,9 @@ export default function RegisterForm() {
     "mt-1 h-12 w-full rounded-xl border border-line px-3.5 text-[14.5px] outline-none transition-colors focus:border-brand";
   const error = (message?: string) =>
     message ? (
-      <span className="mt-1 block text-[12px] font-semibold text-red-600">{message}</span>
+      <span className="mt-1 block text-[12px] font-semibold text-red-600">
+        {message}
+      </span>
     ) : null;
 
   return (
@@ -123,7 +127,9 @@ export default function RegisterForm() {
             {error(errors.first_name?.message)}
           </label>
           <label className="block">
-            <span className="text-[12.5px] font-semibold text-muted">Фамилия</span>
+            <span className="text-[12.5px] font-semibold text-muted">
+              Фамилия
+            </span>
             <input
               {...register("last_name")}
               autoComplete="family-name"
@@ -146,7 +152,9 @@ export default function RegisterForm() {
         </label>
 
         <label className="block">
-          <span className="text-[12.5px] font-semibold text-muted">Телефон</span>
+          <span className="text-[12.5px] font-semibold text-muted">
+            Телефон
+          </span>
           <input
             {...register("phone")}
             inputMode="tel"
@@ -159,7 +167,9 @@ export default function RegisterForm() {
 
         <div className="grid gap-3.5 sm:grid-cols-2">
           <label className="block">
-            <span className="text-[12.5px] font-semibold text-muted">Пароль</span>
+            <span className="text-[12.5px] font-semibold text-muted">
+              Пароль
+            </span>
             <span className="relative block">
               <input
                 {...register("password")}
@@ -180,7 +190,9 @@ export default function RegisterForm() {
             {error(errors.password?.message)}
           </label>
           <label className="block">
-            <span className="text-[12.5px] font-semibold text-muted">Повтор пароля</span>
+            <span className="text-[12.5px] font-semibold text-muted">
+              Повтор пароля
+            </span>
             <input
               {...register("password2")}
               type={reveal ? "text" : "password"}
@@ -202,17 +214,23 @@ export default function RegisterForm() {
             className="mt-2 h-11 w-full rounded-xl border border-line bg-white px-3.5 text-[14.5px] outline-none transition-colors focus:border-brand"
           />
           <span className="mt-1.5 block text-[12px] leading-relaxed text-gray-700">
-            Оставьте поле пустым — магазин создадим автоматически по имени, а название
-            потом можно поменять в настройках кабинета.
+            Оставьте поле пустым — магазин создадим автоматически по имени, а
+            название потом можно поменять в настройках кабинета.
           </span>
         </label>
 
         <label className="flex cursor-pointer items-start gap-2.5 text-[12.5px] leading-relaxed text-gray-700">
-          <input {...register("terms")} type="checkbox" className="mt-0.5 h-4 w-4" />
+          <input
+            {...register("terms")}
+            type="checkbox"
+            className="mt-0.5 h-4 w-4"
+          />
           <span>
-            Согласен с правилами учебного проекта: данные хранятся локально, платежи
-            не проводятся.{" "}
-            <Link href="/help#terms" className="font-semibold text-brand hover:underline">
+            Принимаю условия использования сервиса.{" "}
+            <Link
+              href="/help#terms"
+              className="font-semibold text-brand hover:underline"
+            >
               Подробнее
             </Link>
           </span>

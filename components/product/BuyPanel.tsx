@@ -23,7 +23,8 @@ import type { Product } from "@/types/product";
 /** Правая колонка карточки товара: цена, количество и все действия покупателя. */
 export default function BuyPanel({ product }: { product: Product }) {
   const router = useRouter();
-  const { add, inCart, qtyInCart, toggleFavorite, isFavorite, showToast } = useCart();
+  const { add, inCart, qtyInCart, toggleFavorite, isFavorite, showToast } =
+    useCart();
   const maxQty = Math.max(1, Math.min(20, product.stock || 1));
   const [qty, setQty] = useState(1);
 
@@ -56,7 +57,10 @@ export default function BuyPanel({ product }: { product: Product }) {
 
       <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
         <Stars value={product.rating} reviews={product.reviews_count} />
-        <Link href="#reviews" className="text-[13px] font-medium text-brand hover:underline">
+        <Link
+          href="#reviews"
+          className="text-[13px] font-medium text-brand hover:underline"
+        >
           {reviewsWord(product.reviews_count)}
         </Link>
         <span className="text-[13px] text-muted">
@@ -109,7 +113,9 @@ export default function BuyPanel({ product }: { product: Product }) {
             >
               <Minus size={16} />
             </button>
-            <span className="w-10 text-center text-[15px] font-bold text-ink">{qty}</span>
+            <span className="w-10 text-center text-[15px] font-bold text-ink">
+              {qty}
+            </span>
             <button
               type="button"
               onClick={() => setQty((q) => Math.min(maxQty, q + 1))}
@@ -178,7 +184,11 @@ export default function BuyPanel({ product }: { product: Product }) {
       </div>
 
       <div className="mt-4 space-y-2.5 text-[13px]">
-        <InfoRow icon={<Truck size={16} />} title="Доставка" text={product.delivery_time} />
+        <InfoRow
+          icon={<Truck size={16} />}
+          title="Доставка"
+          text={product.delivery_time}
+        />
         <InfoRow
           icon={<RefreshCcw size={16} />}
           title="Возврат"
@@ -197,14 +207,10 @@ export default function BuyPanel({ product }: { product: Product }) {
         </p>
       ) : (
         <p className="mt-4 rounded-lg bg-[#FFF4E5] px-3 py-2 text-[13px] font-medium text-[#9A5B00]">
-          Продавец пока не завёз товар — добавьте в избранное, чтобы не потерять.
+          Продавец пока не завёз товар — добавьте в избранное, чтобы не
+          потерять.
         </p>
       )}
-
-      <p className="mt-3 text-[12px] leading-relaxed text-gray-400">
-        Учебный демо-магазин: заказы оформляются без списания денег, платежи не
-        проводятся.
-      </p>
 
       <Link
         href={`/shop/${product.seller?.slug ?? product.seller?.id}`}

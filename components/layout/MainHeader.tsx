@@ -2,14 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  Heart,
-  Menu,
-  ShoppingCart,
-  Store,
-  User,
-  X,
-} from "lucide-react";
+import { Heart, Menu, ShoppingCart, Store, User, X } from "lucide-react";
 import SearchBox from "@/components/layout/SearchBox";
 import UserMenu from "@/components/layout/UserMenu";
 import { useCart } from "@/lib/cart";
@@ -70,15 +63,26 @@ export default function MainHeader({
           <div className="flex w-full items-center justify-between gap-3 md:w-auto md:justify-start">
             <Link href="/" className="flex shrink-0 items-center gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/headLogo.png" alt="Uzum Market" className="h-[22px] w-auto sm:h-[26px]" />
-              <span className="mt-0.5 hidden rounded-md bg-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink sm:inline">
-                учебный
-              </span>
+              <img
+                src="/headLogo.png"
+                alt="Uzum Market"
+                className="h-[22px] w-auto sm:h-[26px]"
+              />
             </Link>
 
             <div className="flex items-center gap-1 md:hidden">
-              <IconButton href="/favorites" label="Избранное" icon={<Heart size={22} />} badge={favorites.length} />
-              <IconButton href="/cart" label="Корзина" icon={<ShoppingCart size={22} />} badge={count} />
+              <IconButton
+                href="/favorites"
+                label="Избранное"
+                icon={<Heart size={22} />}
+                badge={favorites.length}
+              />
+              <IconButton
+                href="/cart"
+                label="Корзина"
+                icon={<ShoppingCart size={22} />}
+                badge={count}
+              />
             </div>
           </div>
 
@@ -94,8 +98,18 @@ export default function MainHeader({
           <SearchBox className="w-full md:max-w-[560px]" />
 
           <div className="hidden items-center gap-4 md:flex lg:gap-5">
-            <IconButton href="/favorites" label="Избранное" icon={<Heart size={22} />} badge={favorites.length} />
-            <IconButton href="/cart" label="Корзина" icon={<ShoppingCart size={22} />} badge={count} />
+            <IconButton
+              href="/favorites"
+              label="Избранное"
+              icon={<Heart size={22} />}
+              badge={favorites.length}
+            />
+            <IconButton
+              href="/cart"
+              label="Корзина"
+              icon={<ShoppingCart size={22} />}
+              badge={count}
+            />
             {user ? (
               <UserMenu user={user} displayName={displayName ?? "Профиль"} />
             ) : (
@@ -129,7 +143,8 @@ export default function MainHeader({
               event.stopPropagation();
               // Клик по ссылке внутри панели ведёт на другую страницу — меню
               // закрываем здесь, а не «подхватом» смены pathname.
-              if ((event.target as HTMLElement).closest("a")) setCatalogOpen(false);
+              if ((event.target as HTMLElement).closest("a"))
+                setCatalogOpen(false);
             }}
             role="dialog"
             aria-modal="true"

@@ -18,7 +18,8 @@ export default function LoginGate({
       </span>
       <h1 className="mt-4 text-xl font-bold text-ink">{title}</h1>
       <p className="mt-2 text-sm leading-relaxed text-muted">
-        {text ?? "Это демо-проект: аккаунт создаётся за 20 секунд, а демо-пользователи уже заполнены — можно войти одним кликом."}
+        {text ??
+          "Аккаунт создаётся за 20 секунд — зарегистрируйтесь, чтобы перейти."}
       </p>
       <div className="mt-6 flex flex-col gap-2">
         <Link

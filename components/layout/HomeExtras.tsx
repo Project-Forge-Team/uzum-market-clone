@@ -15,10 +15,26 @@ import type { Seller } from "@/types/product";
 /** Гарантии сервиса — короткий блок под каталогом. */
 export function TrustStrip() {
   const items = [
-    { icon: Truck, title: "Доставка за 1 день", text: "По Ташкенту — бесплатно от 500 000 сум" },
-    { icon: Banknote, title: "Оплата при получении", text: "Картой, наличными или в рассрочку" },
-    { icon: ShieldCheck, title: "Возврат 14 дней", text: "Без объяснения причин, если товар новый" },
-    { icon: ThumbsUp, title: "Только реальные отзывы", text: "Отзыв можно оставить после заказа" },
+    {
+      icon: Truck,
+      title: "Доставка за 1 день",
+      text: "По Ташкенту — бесплатно от 500 000 сум",
+    },
+    {
+      icon: Banknote,
+      title: "Оплата при получении",
+      text: "Картой, наличными или в рассрочку",
+    },
+    {
+      icon: ShieldCheck,
+      title: "Возврат 14 дней",
+      text: "Без объяснения причин, если товар новый",
+    },
+    {
+      icon: ThumbsUp,
+      title: "Только реальные отзывы",
+      text: "Отзыв можно оставить после заказа",
+    },
   ];
 
   return (
@@ -31,7 +47,9 @@ export function TrustStrip() {
             </span>
             <div>
               <p className="text-[14px] font-semibold text-ink">{item.title}</p>
-              <p className="text-[12.5px] leading-snug text-muted">{item.text}</p>
+              <p className="text-[12.5px] leading-snug text-muted">
+                {item.text}
+              </p>
             </div>
           </div>
         ))}
@@ -44,7 +62,12 @@ export function TrustStrip() {
 export function SellerPromo({
   stats,
 }: {
-  stats: { products: number; categories: number; sellers: number; reviews: number };
+  stats: {
+    products: number;
+    categories: number;
+    sellers: number;
+    reviews: number;
+  };
 }) {
   return (
     <section className="mx-auto mt-12 w-full max-w-[1240px] px-4">
@@ -57,9 +80,8 @@ export function SellerPromo({
             Выложите свой товар — и получите заказы уже завтра
           </h2>
           <p className="mt-3 max-w-md text-[14px] leading-relaxed text-white/70">
-            В учебном клоне кабинет продавца доступен любому аккаунту: регистрируетесь,
-            добавляете карточку с фото и характеристиками, отвечаете на отзывы и видите
-            свои заказы. Никаких реальных платежей — только механика маркетплейса.
+            Добавляйте товары с фото и характеристиками, управляйте заказами и
+            отвечайте на отзывы.
           </p>
           <div className="mt-6 flex flex-wrap gap-2.5">
             <Link
@@ -78,14 +100,31 @@ export function SellerPromo({
         </div>
         <div className="grid grid-cols-2 gap-3">
           {[
-            { icon: Package, label: "товаров в каталоге", value: formatNumber(stats.products) },
+            {
+              icon: Package,
+              label: "товаров в каталоге",
+              value: formatNumber(stats.products),
+            },
             { icon: Store, label: "магазинов", value: String(stats.sellers) },
-            { icon: Star, label: "отзывов покупателей", value: formatNumber(stats.reviews) },
-            { icon: TrendingUp, label: "категорий", value: String(stats.categories) },
+            {
+              icon: Star,
+              label: "отзывов покупателей",
+              value: formatNumber(stats.reviews),
+            },
+            {
+              icon: TrendingUp,
+              label: "категорий",
+              value: String(stats.categories),
+            },
           ].map((stat) => (
-            <div key={stat.label} className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
+            <div
+              key={stat.label}
+              className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10"
+            >
               <stat.icon size={18} className="text-accent" />
-              <p className="mt-2.5 text-2xl font-bold leading-none">{stat.value}</p>
+              <p className="mt-2.5 text-2xl font-bold leading-none">
+                {stat.value}
+              </p>
               <p className="mt-1.5 text-[12.5px] text-white/60">{stat.label}</p>
             </div>
           ))}
@@ -96,13 +135,20 @@ export function SellerPromo({
 }
 
 /** Магазины недели. */
-export function ShopsRow({ sellers = [] }: { sellers: Array<Seller & { product_count: number }> }) {
+export function ShopsRow({
+  sellers = [],
+}: {
+  sellers: Array<Seller & { product_count: number }>;
+}) {
   if (!sellers.length) return null;
   return (
     <section className="mx-auto mt-12 w-full max-w-[1240px] px-4">
       <div className="mb-4 flex items-end justify-between">
         <h2 className="text-xl font-bold text-ink md:text-2xl">Магазины</h2>
-        <Link href="/sellers" className="text-[13px] font-semibold text-brand hover:underline">
+        <Link
+          href="/sellers"
+          className="text-[13px] font-semibold text-brand hover:underline"
+        >
           Все магазины
         </Link>
       </div>
@@ -117,10 +163,14 @@ export function ShopsRow({ sellers = [] }: { sellers: Array<Seller & { product_c
               {seller.name.slice(0, 2).toUpperCase()}
             </span>
             <span className="min-w-0">
-              <span className="block truncate text-[14px] font-bold text-ink">{seller.name}</span>
+              <span className="block truncate text-[14px] font-bold text-ink">
+                {seller.name}
+              </span>
               <span className="block text-[12px] text-muted">
-                {seller.rating > 0 ? `${seller.rating.toFixed(1)} ★` : "новых отзывов пока нет"} ·{" "}
-                {seller.product_count} товаров
+                {seller.rating > 0
+                  ? `${seller.rating.toFixed(1)} ★`
+                  : "новых отзывов пока нет"}{" "}
+                · {seller.product_count} товаров
               </span>
             </span>
           </Link>

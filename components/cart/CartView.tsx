@@ -25,8 +25,10 @@ import type { LiveLine } from "@/lib/use-live-cart";
 
 /** Корзина: цены и остатки сверяются с API, суммы считаются по правилам бэкенда. */
 export default function CartView() {
-  const { items, setQty, remove, toggleFavorite, isFavorite, clear, ready } = useCart();
-  const { live, available, loading, subtotal, savings, error } = useCartTotals();
+  const { items, setQty, remove, toggleFavorite, isFavorite, clear, ready } =
+    useCart();
+  const { live, available, loading, subtotal, savings, error } =
+    useCartTotals();
 
   if (!ready || (loading && items.length > 0 && live.length === 0)) {
     return (
@@ -117,7 +119,11 @@ export default function CartView() {
                       href={line.product ? `/product/${line.id}` : "#"}
                       className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-surface"
                     >
-                      <ProductImage src={line.image} alt={line.title} sizes="80px" />
+                      <ProductImage
+                        src={line.image}
+                        alt={line.title}
+                        sizes="80px"
+                      />
                     </Link>
 
                     <div className="min-w-0 flex-1">
@@ -130,17 +136,22 @@ export default function CartView() {
 
                       {line.missing ? (
                         <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-[#FFEAEA] px-2 py-1 text-[12px] font-semibold text-[#B42318]">
-                          <AlertTriangle size={13} /> товара больше нет в продаже
+                          <AlertTriangle size={13} /> товара больше нет в
+                          продаже
                         </p>
                       ) : line.unavailable ? (
                         <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-[#FFF4E5] px-2 py-1 text-[12px] font-semibold text-[#9A5B00]">
-                          <AlertTriangle size={13} /> нет в наличии ({line.product?.stock} шт.)
+                          <AlertTriangle size={13} /> нет в наличии (
+                          {line.product?.stock} шт.)
                         </p>
                       ) : (
                         <div className="mt-2 flex items-center gap-2">
                           <Stepper
                             qty={line.qty}
-                            max={Math.min(20, Math.max(1, line.product?.stock ?? 20))}
+                            max={Math.min(
+                              20,
+                              Math.max(1, line.product?.stock ?? 20),
+                            )}
                             onChange={(next) => setQty(line.id, next)}
                           />
                           <span className="text-[12px] text-muted">
@@ -164,7 +175,8 @@ export default function CartView() {
                           type="button"
                           onClick={() => {
                             if (!line.product) return;
-                            if (!isFavorite(line.id)) toggleFavorite(line.product);
+                            if (!isFavorite(line.id))
+                              toggleFavorite(line.product);
                             remove(line.id);
                           }}
                           disabled={!line.product}
@@ -174,7 +186,9 @@ export default function CartView() {
                           <Heart
                             size={15}
                             className={
-                              line.product && isFavorite(line.id) ? "fill-brand text-brand" : ""
+                              line.product && isFavorite(line.id)
+                                ? "fill-brand text-brand"
+                                : ""
                             }
                           />
                         </button>
@@ -206,7 +220,10 @@ export default function CartView() {
           <div className="rounded-2xl bg-white p-5 ring-1 ring-line">
             <h2 className="text-[15px] font-bold text-ink">Итого</h2>
             <dl className="mt-3 space-y-2 text-[13.5px]">
-              <Row label={`Товары (${units} шт.)`} value={`${formatNumber(subtotal)} сум`} />
+              <Row
+                label={`Товары (${units} шт.)`}
+                value={`${formatNumber(subtotal)} сум`}
+              />
               {savings > 0 && (
                 <Row
                   label="Ваша выгода"
@@ -216,7 +233,9 @@ export default function CartView() {
               )}
               <Row
                 label="Доставка"
-                value={delivery === 0 ? "бесплатно" : `${formatNumber(delivery)} сум`}
+                value={
+                  delivery === 0 ? "бесплатно" : `${formatNumber(delivery)} сум`
+                }
                 tone={delivery === 0 ? "success" : "default"}
               />
             </dl>
@@ -224,16 +243,21 @@ export default function CartView() {
             {delivery > 0 && (
               <p className="mt-3 rounded-xl bg-brand-soft px-3 py-2 text-[12.5px] leading-snug text-brand">
                 <Truck size={13} className="mr-1 inline" />
-                Добавьте товаров на {formatNumber(FREE_DELIVERY_FROM - subtotal)} сум —
-                и доставка станет бесплатной
+                Добавьте товаров на{" "}
+                {formatNumber(FREE_DELIVERY_FROM - subtotal)} сум — и доставка
+                станет бесплатной
               </p>
             )}
 
             <div className="mt-4 flex items-baseline justify-between border-t border-line pt-4">
-              <span className="text-[14px] font-semibold text-gray-700">К оплате</span>
+              <span className="text-[14px] font-semibold text-gray-700">
+                К оплате
+              </span>
               <span className="text-[22px] font-extrabold text-ink">
                 {formatNumber(total)}
-                <span className="ml-1 text-[13px] font-bold text-muted">сум</span>
+                <span className="ml-1 text-[13px] font-bold text-muted">
+                  сум
+                </span>
               </span>
             </div>
 
@@ -249,8 +273,8 @@ export default function CartView() {
               <ArrowRight size={17} />
             </Link>
             <p className="mt-2.5 text-[11.5px] leading-snug text-muted">
-              Оплата в демо-режиме не списывается: заказ сохранится в личном кабинете
-              с реальным статусом и списанием остатков.
+              Оплата при получении: заказ сохранится в личном кабинете с
+              историей статусов.
             </p>
           </div>
         </aside>

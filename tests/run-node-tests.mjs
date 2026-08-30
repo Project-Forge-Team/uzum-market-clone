@@ -38,7 +38,12 @@ function runSuite(base) {
         }
       };
       child.stdout.on("data", onChunk);
-      child.stderr.on("data", (b) => lines.push(b.toString()));
+      // stderr печатаем тоже: трейсбек упавшего e2e.py должен быть виден в логе
+      child.stderr.on("data", (b) => {
+        const text = b.toString();
+        lines.push(text);
+        process.stderr.write(text);
+      });
       child.on("error", (err) =>
         resolve({ spawnError: err, passed, failed, output: lines.join("\n") }),
       );
@@ -125,6 +130,16 @@ try {
   }
   if (suite.passed + suite.failed === 0) {
     console.error(`tests/e2e.py ничего не напечатал (код ${suite.code}):\n${suite.output}`);
+    await app.stop();
+    await backend.stop();
+    process.exit(1);
+  }
+  // e2e.py завершился не с кодом 0, но ни одной FAIL-строки не было
+  // (крах по середине сценария) — тоже провал, показываем хвост вывода.
+  if (suite.failed === 0 && suite.code !== 0) {
+    console.error(
+      `tests/e2e.py упал без FAIL-строк (код ${suite.code}, напечатал ${suite.passed} ok):\n${suite.output.slice(-4000)}`,
+    );
     await app.stop();
     await backend.stop();
     process.exit(1);

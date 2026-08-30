@@ -8,13 +8,22 @@
 
 Формат вывода: одна строка `~ ok <шаг>` / `~ FAIL <шаг>` на проверку.
 """
-import json, os, re, sys, urllib.request as u, urllib.error
+import json, os, re, sys, traceback, urllib.request as u, urllib.error
 
 B = os.environ.get("UZUM_BASE_URL", "http://127.0.0.1:3000").rstrip("/")
 res = []
 def check(cond, label):
     res.append((bool(cond), label))
     print(("~ ok " if cond else "~ FAIL ") + label, flush=True)
+
+# Непредвиденное исключение в теле сценария (баг скрипта, битый JSON) —
+# не роняем процесс молча: печатаем видимый FAIL с полным traceback'ом,
+# чтобы в логе CI сразу была причина.
+def _on_uncaught(exc_type, exc, tb):
+    print("~ FAIL сценарий упал: %s: %s" % (exc_type.__name__, exc), flush=True)
+    traceback.print_exception(exc_type, exc, tb)
+    sys.exit(1)
+sys.excepthook = _on_uncaught
 
 class C:
     def __init__(s): s.cookies={}; s.csrf=None
@@ -39,25 +48,33 @@ class C:
                 txt=resp.read().decode("utf-8","replace")
         except urllib.error.HTTPError as e:
             txt=e.read().decode("utf-8","replace"); code=e.code
+        except Exception as e:
+            # Таймаут/соединение — не роняем весь сценарий traceback'ом:
+            # шаг просто падает с понятной причиной, остальные шаги идут.
+            return 0, f"request error: {type(e).__name__}: {e}"
         else:
             code=resp.status
         try: return code, json.loads(txt)
         except Exception: return code, txt
     def login(s, email, pwd):
-        s.csrf=s.call("GET","/api/auth/csrf")[1]["csrf"]
+        st,csrf=s.call("GET","/api/auth/csrf")
+        s.csrf=csrf.get("csrf") if isinstance(csrf,dict) else None
         st,body=s.call("POST","/api/auth/login",{"email":email,"password":pwd})
-        s.csrf=s.call("GET","/api/auth/csrf")[1]["csrf"]
-        check(st==200, f"login {email} -> {st}")
+        st2,csrf=s.call("GET","/api/auth/csrf")
+        if isinstance(csrf,dict) and csrf.get("csrf"): s.csrf=csrf["csrf"]
+        check(st==200 and s.csrf is not None, f"login {email} -> {st} (csrf={'да' if s.csrf else 'НЕТ'})")
     def html(s, path):
         r=u.Request(B+path, headers={"Cookie":"; ".join(f"{k}={v}" for k,v in s.cookies.items()) or "x=1"})
         try:
             with u.urlopen(r, timeout=90) as resp: return resp.status, resp.read().decode("utf-8","replace")
         except urllib.error.HTTPError as e: return e.code, e.read().decode("utf-8","replace")
+        except Exception as e: return 0, f"request error: {type(e).__name__}: {e}"
 
 buyer=C(); seller=C()
 buyer.login("buyer@uzum.uz","Password123"); seller.login("seller@uzum.uz","Password123")
 
-st,me=seller.call("GET","/api/auth/me"); check(st==200 and me["is_seller"], f"seller me -> seller_id={me.get('seller_id')}")
+st,me=seller.call("GET","/api/auth/me")
+check(st==200 and isinstance(me,dict) and me.get("is_seller"), f"seller me -> seller_id={me.get('seller_id') if isinstance(me,dict) else me}")
 # количество товаров в сиде менять можно — важно, что кабинет показывает все свои и черновики видны
 st,shop_body=seller.call("GET","/api/shop")
 shop_id = shop_body["id"] if isinstance(shop_body, dict) and shop_body.get("id") else None
@@ -101,19 +118,23 @@ st, rl0 = buyer.call("GET", f"/api/products/{pid}/reviews")
 check(st == 200 and rl0["can_review"] is True, "покупатель с заказом: can_review=true")
 st, rl0 = seller.call("GET", f"/api/products/{pid}/reviews")
 check(rl0["can_review"] is False, "продавец без покупки: can_review=false")
+def csrf_of(c):
+    _, b = c.call("GET", "/api/auth/csrf")
+    return b.get("csrf") if isinstance(b, dict) else None
+
 def login_as(email, pwd="Password123"):
     c = C()
-    c.csrf = c.call("GET", "/api/auth/csrf")[1]["csrf"]
+    c.csrf = csrf_of(c)
     if c.call("POST", "/api/auth/login", {"email": email, "password": pwd})[0] != 200:
         # пользователя нет — заводим; повторный прогон уже видит его живым
-        c.csrf = c.call("GET", "/api/auth/csrf")[1]["csrf"]
+        c.csrf = csrf_of(c)
         c.call("POST", "/api/auth/register", {
             "first_name": "Прохожий", "last_name": "Тестовый", "email": email,
             "phone": "+998901112233", "password": pwd, "password2": pwd,
         })
-        c.csrf = c.call("GET", "/api/auth/csrf")[1]["csrf"]
+        c.csrf = csrf_of(c)
         c.call("POST", "/api/auth/login", {"email": email, "password": pwd})
-        c.csrf = c.call("GET", "/api/auth/csrf")[1]["csrf"]
+        c.csrf = csrf_of(c)
     return c
 
 stranger = login_as("stranger@uzum.uz")
@@ -154,7 +175,7 @@ check(st==200 and shop.get("name")=="Uzum Students · мастерская" and 
 st,shopPage=buyer.html("/shop/uzum-students"); check(st==200 and "мастерская" in shopPage, "публичная витрина открывается по старому слагу")
 st,html=seller.html("/profile/settings"); check("Сбросить демо-данные" in html, "в настройках есть сброс демо-базы")
 st,rp=seller.call("POST","/api/auth/password",{"current":"Password123","next":"Password456"}); check(st==200, f"смена пароля -> {st}")
-tmp=C(); st,body=tmp.call("GET","/api/auth/csrf"); tmp.csrf=body["csrf"]
+tmp=C(); st,body=tmp.call("GET","/api/auth/csrf"); tmp.csrf=body.get("csrf") if isinstance(body,dict) else None
 check(tmp.call("POST","/api/auth/login",{"email":"seller@uzum.uz","password":"Password456"})[0]==200, "вход с новым паролем")
 st,rp=seller.call("POST","/api/auth/password",{"current":"Password456","next":"Password123"}); check(st==200, "пароль возвращён")
 st,html=seller.html("/cabinet"); check(st==200, "кабинет жив после всех операций")

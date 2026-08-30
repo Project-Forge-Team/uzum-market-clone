@@ -201,6 +201,8 @@ export function fetchSeller(id: number | string): Promise<Seller & { products: P
 export function fetchReviews(productId: number): Promise<{
   summary: ReviewSummary;
   results: Review[];
+  can_review: boolean;
+  purchases: number;
 }> {
   return request(`/products/${productId}/reviews`);
 }

@@ -23,6 +23,7 @@ import {
   type ReviewRow,
 } from "./db";
 import { ApiError, toNumber } from "./http";
+import { canBuyerReview } from "./catalog";
 
 /* ------------------------------------------------------------------ */
 /*  Валидаторы                                                         */
@@ -297,14 +298,7 @@ export interface ReviewInput {
   cons?: string;
 }
 
-function userBought(db: ReturnType<typeof getDb>, userId: number, productId: number) {
-  return db.orders.some(
-    (o) =>
-      o.user_id === userId &&
-      o.status !== "cancelled" &&
-      o.items.some((i) => i.product_id === productId),
-  );
-}
+const userBought = canBuyerReview;
 
 /** Один отзыв на товар: повторная отправка обновляет существующий. */
 export function upsertReview(
@@ -334,6 +328,12 @@ export function upsertReview(
     (r) => r.product_id === productId && r.user_id === userId,
   );
   const verified = userBought(db, userId, productId);
+  if (!existing && !verified) {
+    throw new ApiError(
+      403,
+      "Отзыв могут оставить только покупатели, которые уже купили этот товар. Оформите заказ — форма откроется, как только продавец подтвердит покупку.",
+    );
+  }
 
   if (existing) {
     existing.rating = rating;

@@ -38,6 +38,8 @@ export default function ReviewsSection({
   user,
   canReply,
   shopName,
+  initialCanReview,
+  initialPurchases,
 }: {
   productId: number;
   initialReviews: Review[];
@@ -45,6 +47,8 @@ export default function ReviewsSection({
   user: UserProfile | null;
   canReply: boolean;
   shopName?: string;
+  initialCanReview: boolean;
+  initialPurchases: number;
 }) {
   const router = useRouter();
   const { showToast } = useCart();
@@ -53,6 +57,8 @@ export default function ReviewsSection({
   const [sort, setSort] = useState<SortMode>("new");
   const [filterStar, setFilterStar] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const [canReview, setCanReview] = useState(initialCanReview);
+  const [purchases, setPurchases] = useState(initialPurchases);
 
   const own = reviews.find((review) => review.own) ?? null;
 
@@ -67,6 +73,8 @@ export default function ReviewsSection({
     const data = await fetchReviews(productId);
     setReviews(data.results);
     setSummary(data.summary);
+    setCanReview(data.can_review);
+    setPurchases(data.purchases);
     router.refresh();
   };
 
@@ -78,7 +86,9 @@ export default function ReviewsSection({
           <span className="font-medium text-muted">({summary.count})</span>
         </h2>
         <span className="rounded-lg bg-brand-soft px-2.5 py-1 text-[12px] font-semibold text-brand">
-          Оставлять отзывы могут только авторизованные пользователи
+          {purchases > 0
+            ? `Куплено ${plural(purchases, ["раз", "раза", "раз"])}`
+            : "Отзывы — только от покупателей"}
         </span>
       </div>
 
@@ -145,6 +155,7 @@ export default function ReviewsSection({
             user={user}
             productId={productId}
             own={own}
+            canReview={canReview}
             onDone={async (message) => {
               await refresh();
               showToast(message);
@@ -208,11 +219,13 @@ function ReviewComposer({
   user,
   productId,
   own,
+  canReview,
   onDone,
 }: {
   user: UserProfile | null;
   productId: number;
   own: Review | null;
+  canReview: boolean;
   onDone: (message: string) => Promise<void>;
 }) {
   const [rating, setRating] = useState(own?.rating ?? 5);
@@ -239,6 +252,28 @@ function ReviewComposer({
           className="mt-3 inline-block rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-brand-dark"
         >
           Войти и написать отзыв
+        </Link>
+      </div>
+    );
+  }
+
+  // без покупки отзыв не создать; редактировать свой можно и после отмены заказа
+  if (!own && !canReview) {
+    return (
+      <div className="rounded-2xl bg-brand-soft p-5">
+        <p className="flex items-center gap-2 text-[14px] font-bold text-ink">
+          <BadgeCheck className="text-brand" size={18} />
+          Отзывы пишут только покупатели
+        </p>
+        <p className="mt-1.5 text-[13px] leading-snug text-muted">
+          Форма откроется после того, как продавец подтвердит ваш заказ с этим
+          товаром. Оплаченный и не отменённый заказ уже есть? Обновите страницу.
+        </p>
+        <Link
+          href="/cart"
+          className="mt-3 inline-block rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-brand-dark"
+        >
+          Перейти в корзину
         </Link>
       </div>
     );

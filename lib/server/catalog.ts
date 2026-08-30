@@ -511,16 +511,53 @@ export function getSellerBySlugOrId(key: string | number) {
 /* ------------------------------------------------------------------ */
 /*  Отзывы                                                             */
 /* ------------------------------------------------------------------ */
+/**
+ * Отзыв может оставить только тот, кто купил товар: хотя бы один заказ этого
+ * пользователя со статусом, отличным от «отменён». Так же считается бейдж
+ * «Куплено N раз» на карточке товара.
+ */
+export function canBuyerReview(
+  db: Database,
+  userId: number,
+  productId: number,
+): boolean {
+  return db.orders.some(
+    (o) =>
+      o.user_id === userId &&
+      o.status !== "cancelled" &&
+      o.items.some((i) => i.product_id === productId),
+  );
+}
+
+export function purchaseCount(db: Database, productId: number): number {
+  return db.orders
+    .filter((o) => o.status !== "cancelled")
+    .reduce(
+      (acc, o) =>
+        acc +
+        o.items.filter((i) => i.product_id === productId).reduce((s, i) => s + i.qty, 0),
+      0,
+    );
+}
+
 export function listReviews(
   productId: number,
   viewerId: number | null = null,
-): { summary: ReviewSummary; results: Review[] } {
+): {
+  summary: ReviewSummary;
+  results: Review[];
+  can_review: boolean;
+  purchases: number;
+} {
   const db = getDb();
   return {
     summary: reviewSummaryFor(db, productId),
     results: reviewsForProduct(db, productId).map((r) =>
       serializeReview(db, r, viewerId),
     ),
+    can_review:
+      viewerId === null ? false : canBuyerReview(db, viewerId, productId),
+    purchases: purchaseCount(db, productId),
   };
 }
 

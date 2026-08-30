@@ -133,6 +133,11 @@ export interface SessionRow {
   expires_at: string;
 }
 
+/** Только чтение: null, если база ещё не загружена (см. getDb). */
+export function peekDb(): Database | null {
+  return globalStore.__uzumDb ?? null;
+}
+
 /** Порядок статусов заказа — используется и сидом, и API-продвижением. */
 export const ORDER_FLOW: OrderStatus[] = ["new", "packing", "shipping", "delivered"];
 

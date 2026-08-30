@@ -53,7 +53,12 @@ export default async function ProductPage({ params }: PageProps) {
   const product = getProductByIdOrSlug(id, user?.id ?? null);
   if (!product) notFound();
 
-  const { results: reviews, summary } = listReviews(product.id, user?.id ?? null);
+  const {
+    results: reviews,
+    summary,
+    can_review: canReview,
+    purchases,
+  } = listReviews(product.id, user?.id ?? null);
   const related = relatedProducts(product, 10);
   const isOwner = !!user && product.seller?.owner_id === user.id;
 
@@ -206,6 +211,8 @@ export default async function ProductPage({ params }: PageProps) {
         user={user}
         canReply={isOwner}
         shopName={product.seller?.name}
+        initialCanReview={canReview}
+        initialPurchases={purchases}
       />
 
       {related.length > 0 && (

@@ -5,6 +5,13 @@
  */
 
 export class ApiError extends Error {
+  /**
+   * Метка для fail(): instanceof ненадёжен, когда один и тот же модуль
+   * загрузился дважды (tsx под Node 20 отдаёт части графа через data: URL,
+   * части — как обычные файлы → два класса ApiError, instanceof false →
+   * честный 403 превращался в 500). Простая метка переживает дубликаты.
+   */
+  readonly apiError = true;
   status: number;
   fields?: Record<string, string>;
 
@@ -13,6 +20,14 @@ export class ApiError extends Error {
     this.status = status;
     this.fields = fields;
   }
+}
+
+/** instanceof + страховка для дублирующего экземпляра модуля (см. apiError). */
+function isApiError(err: unknown): err is ApiError {
+  return (
+    err instanceof ApiError ||
+    (typeof err === "object" && err !== null && (err as { apiError?: unknown }).apiError === true)
+  );
 }
 
 export interface ApiResponse {
@@ -38,13 +53,28 @@ export function json<T>(
 }
 
 export function fail(err: unknown): ApiResponse {
-  if (err instanceof ApiError) {
+  if (isApiError(err)) {
     return json(
       { detail: err.message, ...(err.fields ? { fields: err.fields } : {}) },
       { status: err.status },
     );
   }
-  console.error("[uzum api]", err);
+  // Компактный лог: полный стек в tsx-модулях — это data: URL с URL-encoded
+  // исходником (тысячи байт), которые съедают весь хвост лога и прячут
+  // само сообщение. Печатаем имя+сообщение и первые кадры, обрезанные.
+  const first =
+    err instanceof Error
+      ? `${err.name}: ${err.message}`
+      : String(err);
+  const frames =
+    err instanceof Error && err.stack
+      ? err.stack
+          .split("\n")
+          .slice(1, 3)
+          .map((l) => l.slice(0, 160))
+          .join(" | ")
+      : "";
+  console.error(`[uzum api] 500 ${first} ${frames}`);
   return json(
     { detail: "На сервере что-то сломалось. Попробуйте ещё раз." },
     { status: 500 },

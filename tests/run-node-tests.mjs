@@ -13,6 +13,20 @@ import { freePort, startApp, startBackend } from "./helpers.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
+/**
+ * Аннотация GitHub Actions (::error::): единственный канал, по которому
+ * текст ошибки можно достать извне, когда скачивание логов раннера
+ * недоступно (annotations читаются через REST API check-runs).
+ */
+function annotateError(title, detail) {
+  const esc = (s) =>
+    String(s).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+  const msg = String(detail).slice(-30000);
+  process.stdout.write(
+    `::error file=tests/run-node-tests.mjs,title=${esc(title)}::${esc(msg)}\n`,
+  );
+}
+
 function runSuite(base) {
   return new Promise((resolve) => {
     import("node:child_process").then(({ spawn }) => {
@@ -63,8 +77,9 @@ try {
     port: backendPort,
   });
   if (!backend.ready) {
-    console.error(
-      `локальный бэкенд не ответил на GET /api/health — лог:\n${backend.tail() ?? "(пусто)"}`,
+    annotateError(
+      "локальный бэкенд не поднялся (GET /api/health)",
+      backend.tail() ?? "(лог пуст)",
     );
     await backend.stop();
     process.exit(1);
@@ -75,8 +90,9 @@ try {
     extraEnv: { BACKEND_URL: backend.base },
   });
   if (!app.ready) {
-    console.error(
-      `приложение не ответило на GET /api/health — лог:\n${app.tail() ?? "(пусто)"}`,
+    annotateError(
+      "next dev не ответил на GET /api/health",
+      app.tail() ?? "(лог пуст)",
     );
     await app.stop();
     await backend.stop();
@@ -120,16 +136,13 @@ try {
 
   const suite = await runSuite(app.base);
   if (suite.spawnError) {
-    console.error(
-      `не удалось запустить python3 (${suite.spawnError.message}). ` +
-        "Нужен Python 3 в PATH — он стоит в образе CI; локально: apt install python3.",
-    );
+    annotateError("не удалось запустить python3", suite.spawnError.message);
     await app.stop();
     await backend.stop();
     process.exit(2);
   }
   if (suite.passed + suite.failed === 0) {
-    console.error(`tests/e2e.py ничего не напечатал (код ${suite.code}):\n${suite.output}`);
+    annotateError("e2e.py ничего не напечатал", `код ${suite.code}:\n${suite.output}`);
     await app.stop();
     await backend.stop();
     process.exit(1);
@@ -137,8 +150,9 @@ try {
   // e2e.py завершился не с кодом 0, но ни одной FAIL-строки не было
   // (крах по середине сценария) — тоже провал, показываем хвост вывода.
   if (suite.failed === 0 && suite.code !== 0) {
-    console.error(
-      `tests/e2e.py упал без FAIL-строк (код ${suite.code}, напечатал ${suite.passed} ok):\n${suite.output.slice(-4000)}`,
+    annotateError(
+      "e2e.py упал без FAIL-строк",
+      `код ${suite.code}, напечатал ${suite.passed} ok:\n${suite.output}`,
     );
     await app.stop();
     await backend.stop();
@@ -149,12 +163,19 @@ try {
     `=== npm test: ${suite.passed + 1} passed / ${suite.failed} failed ===` +
       " (+1 — приложение поднялось в своей песочнице, +1 — локальный бэкенд)",
   );
+  if (suite.failed > 0) {
+    annotateError(
+      `${suite.failed} проверок e2e упало`,
+      suite.output,
+    );
+  }
   await app.stop();
   await backend.stop();
   fs.rmSync(sandbox, { recursive: true, force: true, maxRetries: 5 });
   process.exit(suite.failed > 0 ? 1 : 0);
 } catch (err) {
   console.error(err);
+  annotateError("хенарес npm test упал с исключением", String(err?.stack ?? err));
   if (app) await app.stop();
   if (backend) await backend.stop();
   fs.rmSync(sandbox, { recursive: true, force: true, maxRetries: 5 });

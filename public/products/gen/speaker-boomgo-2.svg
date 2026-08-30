@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800" role="img" aria-label="Портативная колонка BoomGo 20 Вт">
+  <defs><linearGradient id="g" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#FFF4EC"/><stop offset="1" stop-color="#FFDFC4"/></linearGradient></defs>
+  <rect width="800" height="800" rx="40" fill="url(#g)"/>
+  <circle cx="620" cy="180" r="210" fill="#ffffff" opacity="0.45"/><circle cx="180" cy="640" r="150" fill="#FFDFC4" opacity="0.9"/>
+  <text x="400" y="400" font-size="190" text-anchor="middle" font-family="'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif">🔊</text>
+  <text x="400" y="660" font-size="42" font-weight="600" text-anchor="middle" fill="#1F1F1F" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">Портативная колонка BoomGo 20 Вт</text>
+  <text x="400" y="706" font-size="26" text-anchor="middle" fill="#1F1F1F" opacity="0.55" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">Электроника · вид 2</text>
+  <rect x="40" y="40" width="150" height="46" rx="23" fill="#ffffff" opacity="0.75"/>
+  <text x="115" y="71" font-size="22" text-anchor="middle" fill="#7000FF" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">DEMO PHOTO</text>
+</svg>

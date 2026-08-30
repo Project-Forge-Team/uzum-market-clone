@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# локальная демо-база (lib/server/db.ts) и каталог сборки, который использует npm test
+.data/
+.next-test/

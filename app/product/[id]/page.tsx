@@ -1,223 +1,248 @@
-import { notFound } from "next/navigation";
-import { fetchProduct } from "@/lib/api";
-import ProductGallery from "@/components/ProductGallery";
-import {
-  Star,
-  Truck,
-  ShieldCheck,
-  Store,
-  ChevronRight,
-  Heart,
-  ShoppingCart,
-} from "lucide-react";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import {
+  ChevronRight,
+  Eye,
+  Package,
+  PencilLine,
+  Store,
+} from "lucide-react";
+import ProductGallery from "@/components/ProductGallery";
+import BuyPanel from "@/components/product/BuyPanel";
+import ReviewsSection from "@/components/product/ReviewsSection";
+import ViewBeacon from "@/components/product/ViewBeacon";
+import ProductCard from "@/components/ui/ProductCard";
+import SectionHeader from "@/components/ui/SectionHeader";
+import {
+  getProductByIdOrSlug,
+  listReviews,
+  relatedProducts,
+} from "@/lib/server/catalog";
+import { getCurrentUser, publicUser } from "@/lib/server/auth";
+import { formatNumber } from "@/lib/format";
+import { productsWord } from "@/lib/format";
 
-interface ProductPageProps {
+export const dynamic = "force-dynamic";
+
+interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-export async function generateMetadata({
-  params,
-}: ProductPageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  const product = await fetchProduct(id);
+  const product = getProductByIdOrSlug(id);
   if (!product) return { title: "Товар не найден" };
   return {
-    title: `${product.title} | Uzum Market`,
-    description: product.description?.slice(0, 160) || product.title,
+    title: `${product.title}`,
+    description: product.description.slice(0, 160),
   };
 }
 
-/** Server Component — данные товара на сервере (SEO + без клиентского waterfall) */
-export default async function ProductPage({ params }: ProductPageProps) {
+/**
+ * Карточка товара. Собрана на сервере (SEO + быстрый первый экран),
+ * интерактив вынесен в клиентские компоненты: покупка, отзывы, зум.
+ */
+export default async function ProductPage({ params }: PageProps) {
   const { id } = await params;
-  const product = await fetchProduct(id);
+  const userRow = await getCurrentUser();
+  const user = userRow ? publicUser(userRow) : null;
 
-  if (!product) {
-    notFound();
-  }
+  // includeHidden по умолчанию: черновик/снятый товар вернётся только его
+  // владельцу — остальные получают 404, как и должно быть на маркетплейсе.
+  const product = getProductByIdOrSlug(id, user?.id ?? null);
+  if (!product) notFound();
 
-  const rawImages = (product.images?.length ? product.images : [product.image]).filter(
-    Boolean,
-  ) as string[];
-  const productImages = rawImages.length
-    ? rawImages
-    : ["https://placehold.co/600x600?text=Uzum"];
-  const discountPercent = product.old_price
-    ? Math.round(
-        ((Number(product.old_price) - Number(product.price)) /
-          Number(product.old_price)) *
-          100,
-      )
-    : 0;
+  const {
+    results: reviews,
+    summary,
+    can_review: canReview,
+    purchases,
+  } = listReviews(product.id, user?.id ?? null);
+  const related = relatedProducts(product, 10);
+  const isOwner = !!user && product.seller?.owner_id === user.id;
+
+  const characteristics = Object.entries(product.characteristics ?? {});
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-6">
-      <nav className="flex items-center gap-1 text-sm text-gray-500 mb-4 overflow-x-auto whitespace-nowrap">
-        <Link href="/" className="hover:text-[#7000FF] transition-colors">
+    <div className="mx-auto w-full max-w-[1240px] px-4 py-6">
+      <ViewBeacon productId={product.id} />
+
+      {product.status !== "active" && (
+        <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl bg-[#FFF4E5] px-4 py-3 text-[13.5px] text-[#9A5B00]">
+          <PencilLine size={16} className="shrink-0" />
+          <span>
+            Это {product.status === "draft" ? "черновик" : "товар, снятый с продажи"}: его
+            нет в каталоге и поиске, ссылку видите только вы.
+          </span>
+          <Link
+            href={`/cabinet/products/${product.id}`}
+            className="ml-auto rounded-xl bg-brand px-3.5 py-2 text-[13px] font-bold text-white transition-colors hover:bg-brand-dark"
+          >
+            Открыть в кабинете
+          </Link>
+        </div>
+      )}
+
+      <nav
+        aria-label="Хлебные крошки"
+        className="no-scrollbar mb-4 flex items-center gap-1 overflow-x-auto whitespace-nowrap text-[13px] text-muted"
+      >
+        <Link href="/" className="transition-colors hover:text-brand">
           Главная
         </Link>
-        <ChevronRight size={14} />
+        <ChevronRight size={13} className="text-gray-300" />
         {product.category && (
           <>
             <Link
-              href={`/search?category=${product.category.id}`}
-              className="hover:text-[#7000FF] transition-colors"
+              href={`/catalog/${product.category.slug}`}
+              className="transition-colors hover:text-brand"
             >
               {product.category.name}
             </Link>
-            <ChevronRight size={14} />
+            <ChevronRight size={13} className="text-gray-300" />
           </>
         )}
-        <span className="text-gray-700 truncate">{product.title}</span>
+        <span className="max-w-[46ch] truncate text-gray-700">{product.title}</span>
+        {product.status !== "active" && (
+          <span className="ml-2 rounded-md bg-[#FFF4E5] px-2 py-0.5 text-[11px] font-bold text-[#9A5B00]">
+            {product.status === "draft" ? "черновик" : "архив"}
+          </span>
+        )}
       </nav>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-        <ProductGallery images={productImages} title={product.title} />
-
-        <div className="flex flex-col">
-          <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 leading-tight">
-            {product.title}
-          </h1>
-
-          <div className="flex items-center gap-3 mt-3">
-            <div className="flex items-center gap-1">
-              <Star size={18} className="fill-yellow-400 text-yellow-400" />
-              <span className="font-medium">{product.rating}</span>
-            </div>
-            <a
-              href="#reviews"
-              className="text-[#7000FF] hover:underline text-sm"
-            >
-              {product.reviews_count} отзывов
-            </a>
-          </div>
-
-          <div className="mt-5 flex items-end gap-3 flex-wrap">
-            <span className="text-3xl md:text-4xl font-bold text-gray-900">
-              {Number(product.price).toLocaleString()} сум
-            </span>
-            {product.old_price && (
-              <>
-                <span className="text-lg text-gray-400 line-through">
-                  {Number(product.old_price).toLocaleString()} сум
-                </span>
-                <span className="bg-red-100 text-red-600 text-sm font-semibold px-2 py-1 rounded-lg">
-                  -{discountPercent}%
-                </span>
-              </>
-            )}
-          </div>
-
-          {product.monthly_payment && (
-            <div className="mt-3 inline-flex items-center gap-2 bg-[#F0F0FF] text-[#7000FF] text-sm font-medium px-4 py-2 rounded-xl w-fit">
-              <ShieldCheck size={16} />
-              от {Number(product.monthly_payment).toLocaleString()} сум/мес
-            </div>
-          )}
-
-          <div className="mt-6 space-y-3">
-            <button className="w-full bg-[#7000FF] text-white py-4 rounded-xl font-semibold text-lg hover:bg-[#5a00cc] transition-colors flex items-center justify-center gap-2">
-              <ShoppingCart size={20} />
-              Добавить в корзину
-            </button>
-            <button className="w-full bg-white border-2 border-[#7000FF] text-[#7000FF] py-4 rounded-xl font-semibold text-lg hover:bg-[#F0F0FF] transition-colors">
-              Купить сейчас
-            </button>
-          </div>
-
-          <div className="mt-5 flex items-start gap-3 bg-gray-50 p-4 rounded-xl">
-            <Truck size={22} className="text-gray-600 mt-0.5" />
-            <div>
-              <p className="font-medium text-gray-900">Доставка</p>
-              <p className="text-gray-600">{product.delivery_time}</p>
-            </div>
-          </div>
-
-          {product.seller && (
-            <div className="mt-4 flex items-center justify-between bg-white border border-gray-200 p-4 rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                  <Store size={20} className="text-gray-600" />
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">
-                    {product.seller.name}
-                  </p>
-                  <div className="flex items-center gap-1 text-sm text-gray-500">
-                    <Star
-                      size={14}
-                      className="fill-yellow-400 text-yellow-400"
-                    />
-                    {product.seller.rating} · {product.seller.reviews_count}{" "}
-                    отзывов
-                  </div>
-                </div>
-              </div>
-              <button className="text-[#7000FF] hover:bg-[#F0F0FF] px-3 py-2 rounded-lg text-sm font-medium transition-colors">
-                В магазин
-              </button>
-            </div>
-          )}
-
-          <button className="mt-3 flex items-center gap-2 text-gray-500 hover:text-[#7000FF] transition-colors">
-            <Heart size={18} />
-            В избранное
-          </button>
-        </div>
+      <div className="grid gap-6 lg:grid-cols-2 lg:gap-10">
+        <ProductGallery images={product.images} title={product.title} />
+        <BuyPanel product={product} />
       </div>
 
-      {product.characteristics &&
-        Object.keys(product.characteristics).length > 0 && (
-          <section className="mt-12">
-            <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">
-              Характеристики
-            </h2>
-            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-              <table className="w-full text-sm">
-                <tbody>
-                  {Object.entries(product.characteristics).map(
-                    ([key, value], index) => (
-                      <tr
-                        key={key}
-                        className={index % 2 === 0 ? "bg-gray-50" : "bg-white"}
-                      >
-                        <td className="px-4 py-3 text-gray-500 w-1/3">{key}</td>
-                        <td className="px-4 py-3 text-gray-900 font-medium">
-                          {value}
-                        </td>
-                      </tr>
-                    ),
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
-
-      {product.description && (
-        <section className="mt-12">
-          <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">
-            Описание
-          </h2>
-          <p className="text-gray-700 leading-relaxed">{product.description}</p>
-        </section>
+      {isOwner && (
+        <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-brand-border bg-brand-soft/50 p-4">
+          <p className="text-[13px] font-medium text-brand">
+            Это ваш товар — вы видите карточку так же, как покупатель. Статус:{" "}
+            {product.status}.
+          </p>
+          <Link
+            href={`/cabinet/products/${product.id}`}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-[13px] font-semibold text-brand ring-1 ring-brand-border transition-colors hover:bg-brand-soft"
+          >
+            <PencilLine size={15} /> Редактировать в кабинете
+          </Link>
+        </div>
       )}
 
-      <section id="reviews" className="mt-12">
-        <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-4">
-          Отзывы ({product.reviews_count})
-        </h2>
-        <div className="bg-white border border-gray-200 rounded-2xl p-6">
-          <div className="text-center py-8">
-            <p className="text-gray-500">Здесь пока нет отзывов.</p>
-            <button className="mt-4 bg-[#7000FF] text-white px-6 py-2.5 rounded-xl font-medium hover:bg-[#5a00cc] transition-colors">
-              Написать отзыв
-            </button>
-          </div>
+      <div className="mt-10 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-5">
+          {characteristics.length > 0 && (
+            <section className="rounded-2xl bg-white p-5 ring-1 ring-line">
+              <h2 className="text-[17px] font-bold text-ink">Характеристики</h2>
+              <dl className="mt-3 divide-y divide-line text-[14px]">
+                {characteristics.map(([key, value]) => (
+                  <div key={key} className="flex flex-wrap gap-2 py-2">
+                    <dt className="min-w-[160px] flex-1 text-muted">{key}</dt>
+                    <dd className="font-medium text-ink">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          )}
+
+          <section className="rounded-2xl bg-white p-5 ring-1 ring-line">
+            <h2 className="text-[17px] font-bold text-ink">Описание</h2>
+            <p className="mt-3 whitespace-pre-line text-[14.5px] leading-relaxed text-gray-700">
+              {product.description}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-line pt-3 text-[12.5px] text-muted">
+              <span className="inline-flex items-center gap-1.5">
+                <Eye size={14} /> {formatNumber(product.views)} просмотров
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Package size={14} /> {productsWord(product.stock)} на складе
+              </span>
+              <span>Обновлено {new Date(product.updated_at).toLocaleDateString("ru-RU")}</span>
+            </div>
+          </section>
         </div>
-      </section>
+
+        {product.seller && (
+          <aside className="h-fit rounded-2xl bg-white p-5 ring-1 ring-line">
+            <p className="text-[12px] font-bold uppercase tracking-wide text-muted">
+              Продавец
+            </p>
+            <div className="mt-3 flex items-center gap-3">
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-soft text-[15px] font-bold text-brand">
+                {product.seller.name.slice(0, 2).toUpperCase()}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-[15px] font-bold text-ink">
+                  {product.seller.name}
+                </p>
+                <p className="text-[12.5px] text-muted">
+                  {product.seller.rating > 0
+                    ? `${product.seller.rating.toFixed(1)} ★`
+                    : "новый магазин"}{" "}
+                  · {product.seller.city}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+              <Stat label="товаров" value={product.seller.product_count} />
+              <Stat label="отзывов" value={product.seller.reviews_count} />
+            </div>
+            <Link
+              href={`/shop/${product.seller.slug}`}
+              className="mt-4 flex h-10 items-center justify-center gap-2 rounded-xl bg-brand text-[13.5px] font-bold text-white transition-colors hover:bg-brand-dark"
+            >
+              <Store size={16} /> В магазин
+            </Link>
+            <p className="mt-2.5 text-[11.5px] leading-snug text-muted">
+              {product.seller.verified
+                ? "Магазин прошёл проверку документов (в демо — всегда «проверен»)."
+                : "Магазин без верификации: в учебном проекте статус «новый»."}
+            </p>
+          </aside>
+        )}
+      </div>
+
+      <ReviewsSection
+        productId={product.id}
+        initialReviews={reviews}
+        initialSummary={summary}
+        user={user}
+        canReply={isOwner}
+        shopName={product.seller?.name}
+        initialCanReview={canReview}
+        initialPurchases={purchases}
+      />
+
+      {related.length > 0 && (
+        <section className="mt-12">
+          <SectionHeader
+            title="Похожие товары"
+            subtitle={
+              product.category
+                ? `Категория «${product.category.name}» и товары этого продавца`
+                : undefined
+            }
+            href={product.category ? `/catalog/${product.category.slug}` : "/catalog"}
+            linkLabel="В категорию"
+          />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+            {related.map((item) => (
+              <ProductCard key={item.id} product={item} />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl bg-surface/70 py-2">
+      <p className="text-[15px] font-bold text-ink">{value}</p>
+      <p className="text-[11.5px] text-muted">{label}</p>
     </div>
   );
 }

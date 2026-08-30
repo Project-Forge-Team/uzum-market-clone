@@ -1,129 +1,156 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import Link from "next/link";
-
+import { Eye, EyeOff, LoaderCircle, LogIn } from "lucide-react";
+import AuthShell from "@/components/auth/AuthShell";
+import DemoAccounts from "@/components/auth/DemoAccounts";
 import { loginUser } from "@/lib/api";
-import { authService, notifyAuthChange } from "@/lib/auth-service";
+import { useSession } from "@/lib/session";
+import type { UserProfile } from "@/types/product";
 
-// 1. Валидация для логина
 const loginSchema = z.object({
-  email: z.string().email("Введите корректный email"),
-  password: z.string().min(1, "Введите пароль"),
+  email: z.string().min(3, "Укажите email").email("Введите корректный email"),
+  password: z.string().min(6, "Минимум 6 символов"),
+  remember: z.boolean().optional(),
 });
 
-type LoginFormValues = z.infer<typeof loginSchema>;
+type Values = z.infer<typeof loginSchema>;
 
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // Получаем адрес, куда юзер хотел попасть (например, /profile)
-  const redirect = searchParams.get("redirect") || "/";
-
+  const redirect = searchParams.get("redirect") || "/profile";
+  const { setUser } = useSession();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [reveal, setReveal] = useState(false);
 
-  // 2. Инициализация формы
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
-  } = useForm<LoginFormValues>({
+  } = useForm<Values>({
     resolver: zodResolver(loginSchema),
+    defaultValues: { email: "", password: "", remember: true },
   });
 
-  // 3. Обработчик отправки
-  const onSubmit = async (data: LoginFormValues) => {
+  const onSubmit = async (data: Values) => {
     setServerError(null);
     try {
-      const user = await loginUser(data);
-
-      // Имя уже сохранено в cookie сессии; кладём удобное отображение для шапки.
-      const displayName =
-        user?.first_name || user?.email?.split("@")[0] || "Профиль";
-      authService.saveUserName(displayName);
-
-      notifyAuthChange();
-      router.push(redirect);
+      const user: UserProfile = await loginUser({
+        email: data.email,
+        password: data.password,
+      });
+      setUser(user);
+      router.push(redirect.startsWith("/") ? redirect : "/profile");
       router.refresh();
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : "Ошибка при входе";
-      setServerError(errorMessage);
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : "Не удалось войти");
     }
   };
 
+  const field =
+    "mt-1 h-12 w-full rounded-xl border border-line px-3.5 text-[14.5px] outline-none transition-colors focus:border-brand";
+
   return (
-    <div className="max-w-md mx-auto mt-10 p-8 bg-white border border-gray-100 rounded-2xl shadow-sm">
-      <h1 className="text-2xl font-bold text-center mb-6">Вход в аккаунт</h1>
+    <AuthShell
+      title="Вход в аккаунт"
+      subtitle="Email и пароль из локальной демо-базы. Ничего не отправляется наружу."
+      footer={
+        <>
+          Аккаунта ещё нет?{" "}
+          <Link href={`/register?redirect=${encodeURIComponent(redirect)}`} className="font-bold text-brand hover:underline">
+            Зарегистрироваться
+          </Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5">
+        <DemoAccounts
+          onPick={(email, password) => {
+            setValue("email", email);
+            setValue("password", password);
+          }}
+        />
 
-      {redirect !== "/" && (
-        <div className="bg-orange-50 text-orange-600 p-3 rounded-lg mb-4 text-sm text-center border border-orange-100">
-          ⚠️ Для просмотра страницы <b>{redirect}</b> необходимо войти.
-        </div>
-      )}
-
-      {serverError && (
-        <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm text-center border border-red-100">
-          {serverError === "No active account found with the given credentials"
-            ? "Неверный email или пароль"
-            : serverError}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* Email */}
-        <div>
+        <label className="block">
+          <span className="text-[12.5px] font-semibold text-muted">Email</span>
           <input
-            type="email"
-            placeholder="Email"
-            autoComplete="email"
             {...register("email")}
-            className="w-full h-[44px] px-4 border border-gray-200 rounded-lg focus:outline-none focus:border-[#7000FF] transition-colors"
+            type="email"
+            autoComplete="username"
+            placeholder="you@example.com"
+            className={`${field} ${errors.email ? "border-red-400" : ""}`}
           />
           {errors.email && (
-            <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>
+            <span className="mt-1 block text-[12px] font-semibold text-red-600">
+              {errors.email.message}
+            </span>
           )}
-        </div>
+        </label>
 
-        {/* Пароль */}
-        <div>
-          <input
-            type="password"
-            placeholder="Пароль"
-            autoComplete="current-password"
-            {...register("password")}
-            className="w-full h-[44px] px-4 border border-gray-200 rounded-lg focus:outline-none focus:border-[#7000FF] transition-colors"
-          />
+        <label className="block">
+          <span className="text-[12.5px] font-semibold text-muted">Пароль</span>
+          <span className="relative block">
+            <input
+              {...register("password")}
+              type={reveal ? "text" : "password"}
+              autoComplete="current-password"
+              placeholder="••••••••"
+              className={`${field} pr-11 ${errors.password ? "border-red-400" : ""}`}
+            />
+            <button
+              type="button"
+              onClick={() => setReveal((v) => !v)}
+              className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-gray-400 transition-colors hover:text-brand"
+              aria-label={reveal ? "Скрыть пароль" : "Показать пароль"}
+            >
+              {reveal ? <EyeOff size={17} /> : <Eye size={17} />}
+            </button>
+          </span>
           {errors.password && (
-            <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>
+            <span className="mt-1 block text-[12px] font-semibold text-red-600">
+              {errors.password.message}
+            </span>
           )}
-        </div>
+        </label>
 
-        {/* Кнопка входа */}
+        <label className="flex cursor-pointer items-center gap-2 text-[13px] text-gray-700">
+          <input {...register("remember")} type="checkbox" className="h-4 w-4" />
+          Держать меня в курсе акций (в демо — просто чекбокс)
+        </label>
+
+        {serverError && (
+          <p className="rounded-xl bg-red-50 px-3.5 py-2.5 text-[13px] font-medium text-red-600">
+            {serverError}
+          </p>
+        )}
+
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full bg-[#7000FF] text-white py-3.5 rounded-xl font-bold disabled:opacity-50 transition-all hover:bg-[#5a00cc] active:scale-95 mt-2"
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand text-[15px] font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-60"
         >
-          {isSubmitting ? "Входим..." : "Войти"}
+          {isSubmitting ? (
+            <LoaderCircle size={17} className="animate-spin" />
+          ) : (
+            <LogIn size={17} />
+          )}
+          Войти
         </button>
-      </form>
 
-      {/* === ССЫЛКА НА РЕГИСТРАЦИЮ === */}
-      <div className="mt-6 text-center">
-        <p className="text-sm text-gray-500">
-          Нет аккаунта?{" "}
-          <Link
-            href="/register"
-            className="text-[#7000FF] font-medium hover:underline"
-          >
-            Зарегистрироваться
-          </Link>
-        </p>
-      </div>
-    </div>
+        <Link
+          href="/help#faq"
+          className="block text-center text-[13px] font-medium text-muted transition-colors hover:text-brand"
+        >
+          Забыли, как здесь всё устроено?
+        </Link>
+      </form>
+    </AuthShell>
   );
 }

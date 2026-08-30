@@ -1,7 +1,81 @@
 @import "tailwindcss";
 
-/* Твои кастомные стили ниже */
+/*
+ * Дизайн-токены учебного клона Uzum.
+ * В Tailwind v4 палитра объявляется здесь, а не в tailwind.config.js,
+ * поэтому в разметке можно писать bg-brand / text-ink / bg-accent.
+ */
+@theme {
+  --color-brand: #7000ff;
+  --color-brand-dark: #5a00cc;
+  --color-brand-soft: #f0f0ff;
+  --color-brand-border: #e2e0ff;
+  --color-accent: #c6f432;
+  --color-accent-dark: #9fd100;
+  --color-ink: #1f1f1f;
+  --color-muted: #6b7280;
+  --color-surface: #f0f2f5;
+  --color-line: #ececf1;
+
+  --animate-shimmer: shimmer 1.6s infinite;
+  --animate-fade-up: fade-up 0.25s ease-out;
+
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background-color: #ffffff;
-  color: #000000;
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Полосы прокрутки у горизонтальных меню категорий — как в приложении */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Аккуратные чекбоксы/радио в фильтрах */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--color-brand);
+}
+
+input[type="range"] {
+  accent-color: var(--color-brand);
+}
+
+/* Скрыть number-стрелки в полях цены */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }

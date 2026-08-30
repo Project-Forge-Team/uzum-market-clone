@@ -1,197 +1,243 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import Link from "next/link";
-
+import { Eye, EyeOff, LoaderCircle, Store, UserPlus } from "lucide-react";
+import AuthShell from "@/components/auth/AuthShell";
 import { registerUser } from "@/lib/api";
-import { authService, notifyAuthChange } from "@/lib/auth-service";
+import { useSession } from "@/lib/session";
 
-// 1. Настраиваем правила валидации (Zod) по API-документации
 const registerSchema = z
   .object({
-    first_name: z.string().min(2, "Имя обязательно (минимум 2 буквы)"),
-    last_name: z.string().optional(),
-    email: z.string().email("Введите корректный email"),
+    first_name: z.string().min(2, "Минимум 2 буквы"),
+    last_name: z.string().max(40).optional(),
+    email: z.string().min(3, "Укажите email").email("Введите корректный email"),
     phone: z
       .string()
-      .optional()
+      .max(30, "Слишком длинный номер")
       .refine(
-        (value) =>
-          !value ||
-          /^(\+?\d[\d\s()\-]{7,19})$/.test(value),
-        "Введите корректный номер телефона, например +998901234567",
+        (value) => value.length === 0 || /^\+?[\d\s()-]{9,20}$/.test(value),
+        "Только цифры, скобки и дефисы",
       ),
     password: z
       .string()
-      .min(8, "Пароль должен быть не менее 8 символов")
-      .refine(
-        (value) => /[A-Za-zА-Яа-яЁё]/.test(value),
-        "Пароль не должен состоять только из цифр",
-      ),
-    password2: z.string().min(8, "Подтвердите пароль"),
+      .min(8, "Минимум 8 символов")
+      .regex(/[A-Za-zА-Яа-я]/, "Хотя бы одна буква")
+      .regex(/\d/, "Хотя бы одна цифра"),
+    password2: z.string().min(8, "Повторите пароль"),
+    shop_name: z.string().max(60, "Не длиннее 60 символов").optional(),
+    terms: z.literal(true, {
+      error: "Нужно согласиться с правилами учебного проекта",
+    }),
   })
   .refine((data) => data.password === data.password2, {
     message: "Пароли не совпадают",
     path: ["password2"],
   });
 
-type RegisterFormValues = z.infer<typeof registerSchema>;
+type Values = z.infer<typeof registerSchema>;
 
 export default function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get("redirect") || "/profile";
+  const { setUser } = useSession();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [reveal, setReveal] = useState(false);
 
-  // 2. Инициализируем форму
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<RegisterFormValues>({
+  } = useForm<Values>({
     resolver: zodResolver(registerSchema),
+    defaultValues: {
+      first_name: "",
+      last_name: "",
+      email: "",
+      phone: "",
+      password: "",
+      password2: "",
+      shop_name: "",
+      terms: true,
+    },
   });
 
-  // 3. Обработчик отправки
-  const onSubmit = async (data: RegisterFormValues) => {
+  const onSubmit = async (data: Values) => {
     setServerError(null);
     try {
       const user = await registerUser({
-        email: data.email,
+        first_name: data.first_name.trim(),
+        last_name: data.last_name?.trim() || "",
+        email: data.email.trim().toLowerCase(),
+        phone: data.phone.trim(),
         password: data.password,
         password2: data.password2,
-        first_name: data.first_name,
-        last_name: data.last_name,
-        phone: data.phone,
+        shop_name: data.shop_name?.trim() || undefined,
       });
-
-      // Кладём имя в localStorage только для быстрого отображения в шапке.
-      const displayName =
-        user?.first_name || user?.email?.split("@")[0] || "Профиль";
-      authService.saveUserName(displayName);
-
-      notifyAuthChange();
-      router.push("/profile");
+      setUser(user);
+      router.push(redirect.startsWith("/") ? redirect : "/profile");
       router.refresh();
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : "Ошибка при регистрации";
-      setServerError(errorMessage);
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : "Не удалось зарегистрироваться");
     }
   };
 
+  const field =
+    "mt-1 h-12 w-full rounded-xl border border-line px-3.5 text-[14.5px] outline-none transition-colors focus:border-brand";
+  const error = (message?: string) =>
+    message ? (
+      <span className="mt-1 block text-[12px] font-semibold text-red-600">{message}</span>
+    ) : null;
+
   return (
-    <div className="max-w-md mx-auto mt-10 p-8 bg-white border border-gray-100 rounded-2xl shadow-sm">
-      <h1 className="text-2xl font-bold text-center mb-6">Регистрация</h1>
-
-      {serverError && (
-        <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm text-center border border-red-100">
-          {serverError}
+    <AuthShell
+      title="Регистрация"
+      subtitle="Аккаунт покупателя и магазин в один шаг. Почту подтверждать не нужно — товары выкладываются сразу."
+      footer={
+        <>
+          Уже есть аккаунт?{" "}
+          <Link
+            href={`/login?redirect=${encodeURIComponent(redirect)}`}
+            className="font-bold text-brand hover:underline"
+          >
+            Войти
+          </Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5">
+        <div className="grid gap-3.5 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-[12.5px] font-semibold text-muted">Имя</span>
+            <input
+              {...register("first_name")}
+              autoComplete="given-name"
+              placeholder="Азиз"
+              className={`${field} ${errors.first_name ? "border-red-400" : ""}`}
+            />
+            {error(errors.first_name?.message)}
+          </label>
+          <label className="block">
+            <span className="text-[12.5px] font-semibold text-muted">Фамилия</span>
+            <input
+              {...register("last_name")}
+              autoComplete="family-name"
+              placeholder="Каримов"
+              className={field}
+            />
+          </label>
         </div>
-      )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* Имя */}
-        <div>
+        <label className="block">
+          <span className="text-[12.5px] font-semibold text-muted">Email</span>
           <input
-            type="text"
-            placeholder="Имя *"
-            autoComplete="given-name"
-            {...register("first_name")}
-            className="w-full h-[44px] px-4 border border-gray-200 rounded-lg focus:outline-none focus:border-[#7000FF] transition-colors"
-          />
-          {errors.first_name && (
-            <p className="text-red-500 text-xs mt-1">{errors.first_name.message}</p>
-          )}
-        </div>
-
-        {/* Фамилия */}
-        <div>
-          <input
-            type="text"
-            placeholder="Фамилия"
-            autoComplete="family-name"
-            {...register("last_name")}
-            className="w-full h-[44px] px-4 border border-gray-200 rounded-lg focus:outline-none focus:border-[#7000FF] transition-colors"
-          />
-          {errors.last_name && (
-            <p className="text-red-500 text-xs mt-1">{errors.last_name.message}</p>
-          )}
-        </div>
-
-        {/* Email */}
-        <div>
-          <input
-            type="email"
-            placeholder="Email"
-            autoComplete="email"
             {...register("email")}
-            className="w-full h-[44px] px-4 border border-gray-200 rounded-lg focus:outline-none focus:border-[#7000FF] transition-colors"
+            type="email"
+            autoComplete="username"
+            placeholder="you@example.com"
+            className={`${field} ${errors.email ? "border-red-400" : ""}`}
           />
-          {errors.email && (
-            <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>
-          )}
-        </div>
+          {error(errors.email?.message)}
+        </label>
 
-        {/* Телефон */}
-        <div>
+        <label className="block">
+          <span className="text-[12.5px] font-semibold text-muted">Телефон</span>
           <input
-            type="tel"
-            placeholder="Телефон (+998901234567)"
-            autoComplete="tel"
             {...register("phone")}
-            className="w-full h-[44px] px-4 border border-gray-200 rounded-lg focus:outline-none focus:border-[#7000FF] transition-colors"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="+998 90 123 45 67"
+            className={field}
           />
-          {errors.phone && (
-            <p className="text-red-500 text-xs mt-1">{errors.phone.message}</p>
-          )}
+          {error(errors.phone?.message)}
+        </label>
+
+        <div className="grid gap-3.5 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-[12.5px] font-semibold text-muted">Пароль</span>
+            <span className="relative block">
+              <input
+                {...register("password")}
+                type={reveal ? "text" : "password"}
+                autoComplete="new-password"
+                placeholder="8+ символов, буква и цифра"
+                className={`${field} pr-11 ${errors.password ? "border-red-400" : ""}`}
+              />
+              <button
+                type="button"
+                onClick={() => setReveal((v) => !v)}
+                className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-gray-400 transition-colors hover:text-brand"
+                aria-label={reveal ? "Скрыть пароль" : "Показать пароль"}
+              >
+                {reveal ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+            </span>
+            {error(errors.password?.message)}
+          </label>
+          <label className="block">
+            <span className="text-[12.5px] font-semibold text-muted">Повтор пароля</span>
+            <input
+              {...register("password2")}
+              type={reveal ? "text" : "password"}
+              autoComplete="new-password"
+              placeholder="Ещё раз"
+              className={`${field} ${errors.password2 ? "border-red-400" : ""}`}
+            />
+            {error(errors.password2?.message)}
+          </label>
         </div>
 
-        {/* Пароль */}
-        <div>
+        <label className="block rounded-2xl bg-brand-soft/60 p-3.5">
+          <span className="flex items-center gap-2 text-[13px] font-bold text-brand">
+            <Store size={15} /> Магазин (необязательно)
+          </span>
           <input
-            type="password"
-            placeholder="Пароль (мин. 8 символов)"
-            autoComplete="new-password"
-            {...register("password")}
-            className="w-full h-[44px] px-4 border border-gray-200 rounded-lg focus:outline-none focus:border-[#7000FF] transition-colors"
+            {...register("shop_name")}
+            placeholder="Например: Мастерская Audio"
+            className="mt-2 h-11 w-full rounded-xl border border-line bg-white px-3.5 text-[14.5px] outline-none transition-colors focus:border-brand"
           />
-          {errors.password && (
-            <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>
-          )}
-        </div>
+          <span className="mt-1.5 block text-[12px] leading-relaxed text-gray-700">
+            Оставьте поле пустым — магазин создадим автоматически по имени, а название
+            потом можно поменять в настройках кабинета.
+          </span>
+        </label>
 
-        {/* Подтверждение пароля */}
-        <div>
-          <input
-            type="password"
-            placeholder="Повторите пароль"
-            autoComplete="new-password"
-            {...register("password2")}
-            className="w-full h-[44px] px-4 border border-gray-200 rounded-lg focus:outline-none focus:border-[#7000FF] transition-colors"
-          />
-          {errors.password2 && (
-            <p className="text-red-500 text-xs mt-1">{errors.password2.message}</p>
-          )}
-        </div>
+        <label className="flex cursor-pointer items-start gap-2.5 text-[12.5px] leading-relaxed text-gray-700">
+          <input {...register("terms")} type="checkbox" className="mt-0.5 h-4 w-4" />
+          <span>
+            Согласен с правилами учебного проекта: данные хранятся локально, платежи
+            не проводятся.{" "}
+            <Link href="/help#terms" className="font-semibold text-brand hover:underline">
+              Подробнее
+            </Link>
+          </span>
+        </label>
+        {error(errors.terms?.message)}
 
-        {/* Кнопка */}
+        {serverError && (
+          <p className="rounded-xl bg-red-50 px-3.5 py-2.5 text-[13px] font-medium text-red-600">
+            {serverError}
+          </p>
+        )}
+
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full bg-[#7000FF] text-white py-3.5 rounded-xl font-bold disabled:opacity-50 transition-all hover:bg-[#5a00cc] active:scale-95 mt-2"
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand text-[15px] font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-60"
         >
-          {isSubmitting ? "Создаем аккаунт..." : "Зарегистрироваться"}
+          {isSubmitting ? (
+            <LoaderCircle size={17} className="animate-spin" />
+          ) : (
+            <UserPlus size={17} />
+          )}
+          Создать аккаунт
         </button>
       </form>
-
-      <p className="text-center text-sm text-gray-500 mt-6">
-        Уже есть аккаунт?{" "}
-        <Link href="/login" className="text-[#7000FF] font-medium hover:underline">
-          Войти
-        </Link>
-      </p>
-    </div>
+    </AuthShell>
   );
 }

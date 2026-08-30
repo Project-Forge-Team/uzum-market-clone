@@ -1,93 +1,126 @@
-// components/ui/ProductCard.tsx
-import { Star, Heart } from "lucide-react";
+"use client";
+
 import Link from "next/link";
-import Image from "next/image";
-import { Product } from "@/types/product";
+import { Heart, ShoppingCart, Truck, Check } from "lucide-react";
+import ProductImage from "@/components/ui/ProductImage";
+import Stars from "@/components/ui/Stars";
+import { useCart } from "@/lib/cart";
+import { formatNumber } from "@/lib/format";
+import type { Product } from "@/types/product";
 
-interface ProductCardProps {
+/**
+ * Карточка товара для витрины.
+ * Клик по всей карточке ведёт в товар (ссылка-оверлей), кнопки корзины и
+ * избранного лежат выше оверлея и работают сами по себе.
+ */
+export default function ProductCard({
+  product,
+  showDelivery = true,
+}: {
   product: Product;
-}
-
-export default function ProductCard({ product }: ProductCardProps) {
-  const price = Number(product.price);
-  const oldPrice = product.old_price ? Number(product.old_price) : null;
-  const monthlyPayment = product.monthly_payment
-    ? Number(product.monthly_payment)
-    : null;
-  const discount =
-    product.discount_percent ??
-    (oldPrice && oldPrice > price
-      ? Math.round(((oldPrice - price) / oldPrice) * 100)
-      : 0);
-  const imageSource = product.image || "https://placehold.co/400x400?text=Uzum";
+  showDelivery?: boolean;
+}) {
+  const { add, inCart, qtyInCart, toggleFavorite, isFavorite } = useCart();
+  const fav = isFavorite(product.id);
+  const inCartNow = inCart(product.id);
+  const discount = product.discount_percent;
+  const installment = product.monthly_payment;
 
   return (
-    <Link href={`/product/${product.id}`}>
-      <div className="flex flex-col bg-white rounded-xl p-3 hover:shadow-lg transition-shadow cursor-pointer h-full">
-        <div className="relative aspect-square mb-2">
-          <Image
-            src={imageSource}
-            alt={product.title}
-            fill
-            sizes="(max-width: 768px) 50vw, 25vw"
-            className="object-contain"
-            unoptimized
-          />
-          {discount > 0 && (
-            <span className="absolute top-2 left-2 bg-[#7000FF]/90 text-white text-[11px] font-bold px-2 py-1 rounded-lg backdrop-blur-sm">
-              -{discount}%
-            </span>
-          )}
-          {product.is_ad && (
-            <span className="absolute bottom-2 left-2 text-[10px] bg-gray-200/90 px-1.5 py-0.5 rounded backdrop-blur-sm text-gray-600 font-medium">
-              Реклама
-            </span>
-          )}
-          <button
-            className="absolute top-2 right-2 p-1.5 bg-white/80 rounded-full hover:bg-white transition-colors backdrop-blur-sm"
-            onClick={(e) => {
-              e.preventDefault();
-              // логика избранного
-            }}
-          >
-            <Heart size={16} className="text-gray-600" />
-          </button>
-        </div>
+    <div className="group relative flex h-full flex-col rounded-2xl bg-white p-3 ring-1 ring-transparent transition-all hover:ring-line hover:shadow-[0_10px_30px_-18px_rgba(31,31,31,0.4)]">
+      <Link
+        href={`/product/${product.id}`}
+        className="absolute inset-0 z-[1] rounded-2xl"
+        aria-label={product.title}
+      />
 
-        <div className="mt-auto">
-          <div className="font-bold text-lg">{price.toLocaleString()} сум</div>
-          {oldPrice && (
-            <div className="text-xs text-gray-400 line-through">
-              {oldPrice.toLocaleString()}
-            </div>
-          )}
-
-          {monthlyPayment && (
-            <div className="inline-block bg-[#F0F0FF] text-[#7000FF] text-xs font-medium px-2 py-0.5 rounded mt-1">
-              от {monthlyPayment.toLocaleString()} сум/мес
-            </div>
-          )}
-
-          <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
-            <Star size={12} className="fill-yellow-400 text-yellow-400" />
-            <span>{product.rating}</span>
-            <span>({product.reviews_count} отзывов)</span>
-          </div>
-          <h3 className="text-sm text-gray-800 mt-1 line-clamp-2 leading-tight min-h-[40px]">
-            {product.title}
-          </h3>
-        </div>
-
+      <div className="relative mb-2 aspect-square overflow-hidden rounded-xl bg-surface/60">
+        <ProductImage
+          src={product.image}
+          alt={product.title}
+          className="transition-transform duration-300 group-hover:scale-[1.03]"
+        />
+        {discount > 0 && (
+          <span className="absolute left-2 top-2 rounded-lg bg-brand/95 px-2 py-1 text-[11px] font-bold text-white">
+            −{discount}%
+          </span>
+        )}
+        {product.is_ad && (
+          <span className="absolute bottom-2 left-2 rounded bg-white/85 px-1.5 py-0.5 text-[10px] font-medium text-muted backdrop-blur-sm">
+            реклама
+          </span>
+        )}
         <button
-          className="w-full mt-3 bg-[#7000FF] text-white py-2 rounded-lg text-sm font-medium hover:bg-[#5a00cc] transition-colors flex items-center justify-center gap-2"
-          onClick={(e) => {
-            e.preventDefault();
-            // логика корзины
-          }}
+          type="button"
+          onClick={() => toggleFavorite(product)}
+          aria-label={fav ? "Убрать из избранного" : "В избранное"}
+          aria-pressed={fav}
+          className="absolute right-2 top-2 z-[2] grid h-8 w-8 place-items-center rounded-full bg-white/90 text-gray-500 shadow-sm backdrop-blur transition-colors hover:text-brand"
         >
-          {product.delivery_time}
+          <Heart size={16} className={fav ? "fill-brand text-brand" : ""} />
         </button>
       </div>
-    </Link>
+
+      <div className="mt-auto flex flex-col">
+        <div className="flex flex-wrap items-end gap-x-2">
+          <span className="text-[19px] font-bold leading-tight text-ink">
+            {formatNumber(product.price)}
+            <span className="ml-1 text-[13px] font-semibold text-muted">сум</span>
+          </span>
+          {product.old_price && (
+            <span className="text-[13px] text-gray-400 line-through">
+              {formatNumber(product.old_price)}
+            </span>
+          )}
+        </div>
+
+        {installment && (
+          <span className="mt-1 w-fit rounded-md bg-brand-soft px-1.5 py-0.5 text-[11px] font-semibold text-brand">
+            {formatNumber(installment.per_month)} сум × {installment.months} мес
+          </span>
+        )}
+
+        {product.reviews_count > 0 && (
+          <div className="mt-1.5">
+            <Stars value={product.rating} reviews={product.reviews_count} showValue={false} />
+          </div>
+        )}
+
+        <h3 className="mt-1.5 line-clamp-2 min-h-[36px] text-[13px] leading-snug text-gray-700">
+          {product.title}
+        </h3>
+
+        {showDelivery && (
+          <div className="mt-1 flex items-center gap-1 text-[12px] text-muted">
+            <Truck size={13} className="text-gray-400" />
+            {product.delivery_time}
+            {!product.in_stock && (
+              <span className="ml-auto text-[11px] text-gray-400">нет в наличии</span>
+            )}
+          </div>
+        )}
+
+        <button
+          type="button"
+          disabled={!product.in_stock}
+          onClick={() => (inCartNow ? undefined : add(product, 1))}
+          className={`mt-2.5 flex h-9 w-full items-center justify-center gap-1.5 rounded-lg text-[13px] font-semibold transition-colors ${
+            inCartNow
+              ? "bg-accent text-ink hover:bg-accent-dark"
+              : "bg-brand text-white hover:bg-brand-dark disabled:bg-surface disabled:text-muted"
+          }`}
+        >
+          {inCartNow ? (
+            <>
+              <Check size={15} />В корзине: {qtyInCart(product.id)}
+            </>
+          ) : (
+            <>
+              <ShoppingCart size={15} />В корзину
+            </>
+          )}
+        </button>
+      </div>
+    </div>
   );
 }

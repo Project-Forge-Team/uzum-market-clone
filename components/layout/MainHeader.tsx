@@ -1,255 +1,193 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { fetchCategories, fetchMe } from "@/lib/api";
-import { authService, AUTH_CHANGE_EVENT } from "@/lib/auth-service";
-import { Menu, X, Search, User, Heart, ShoppingBag, Boxes } from "lucide-react";
+import {
+  Heart,
+  Menu,
+  ShoppingCart,
+  Store,
+  User,
+  X,
+} from "lucide-react";
+import SearchBox from "@/components/layout/SearchBox";
+import UserMenu from "@/components/layout/UserMenu";
+import { useCart } from "@/lib/cart";
+import { useSession } from "@/lib/session";
+import type { Category } from "@/types/product";
 
-const CATEGORIES_TTL_MS = 60 * 60 * 1000; // 1 час
-let categoriesCache:
-  | { data: { id: number; name: string; slug: string }[]; at: number }
-  | null = null;
+function IconButton({
+  href,
+  label,
+  icon,
+  badge,
+}: {
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+  badge?: number;
+}) {
+  return (
+    <Link
+      href={href}
+      className="relative flex items-center gap-2 rounded-lg px-2 py-1.5 text-gray-700 transition-colors hover:text-brand"
+    >
+      <span className="relative">
+        {icon}
+        {!!badge && badge > 0 && (
+          <span className="absolute -right-2 -top-2 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">
+            {badge > 99 ? "99+" : badge}
+          </span>
+        )}
+      </span>
+      <span className="hidden text-[14px] font-medium lg:inline">{label}</span>
+    </Link>
+  );
+}
 
-export default function MainHeader() {
-  const [isCatalogOpen, setIsCatalogOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [categories, setCategories] = useState<
-    { id: number; name: string; slug: string }[]
-  >([]);
-
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userName, setUserName] = useState<string | null>(null);
-
-  const router = useRouter();
-
-  // Категории — lazy: только при открытии каталога (+ in-memory cache)
-  useEffect(() => {
-    if (!isCatalogOpen) return;
-    if (categories.length > 0) return;
-
-    let ignore = false;
-
-    async function load() {
-      const now = Date.now();
-      if (categoriesCache && now - categoriesCache.at < CATEGORIES_TTL_MS) {
-        if (!ignore) setCategories(categoriesCache.data);
-        return;
-      }
-
-      try {
-        const data = await fetchCategories();
-        const mapped = (data.results || []).map((c) => ({
-          id: c.id,
-          name: c.name,
-          slug: c.slug,
-        }));
-        categoriesCache = { data: mapped, at: Date.now() };
-        if (!ignore) setCategories(mapped);
-      } catch (error) {
-        console.error("Ошибка загрузки категорий:", error);
-      }
-    }
-
-    load();
-    return () => {
-      ignore = true;
-    };
-  }, [isCatalogOpen, categories.length]);
-
-  // Профиль: один раз при mount + по событию login/logout (НЕ на каждый pathname).
-  // Токены HttpOnly, поэтому «залогинен ли» определяет только GET /auth/me/.
-  const checkAuthAndUser = useCallback(async () => {
-    try {
-      const userData = await fetchMe();
-
-      if (userData) {
-        setIsAuthenticated(true);
-        const displayName =
-          userData.first_name || userData.email?.split("@")[0] || "Профиль";
-        setUserName(displayName);
-        authService.saveUserName(displayName);
-      } else {
-        setIsAuthenticated(false);
-        setUserName(null);
-        authService.clearUserState();
-      }
-    } catch (error) {
-      console.error("Ошибка проверки сессии:", error);
-      setIsAuthenticated(false);
-      setUserName(null);
-    }
-  }, []);
+export default function MainHeader({
+  categories = [],
+}: {
+  categories?: Array<Category & { product_count?: number }>;
+}) {
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const { user } = useSession();
+  const { count, favorites } = useCart();
 
   useEffect(() => {
-    // Небольшой таймаут: eslint-правило не любит синхронный setState
-    // прямо в теле effect, а фактически setState происходит после async fetchMe.
-    const timer = setTimeout(() => {
-      checkAuthAndUser();
-    }, 0);
-
-    const onAuthChange = () => {
-      checkAuthAndUser();
-    };
-
-    window.addEventListener(AUTH_CHANGE_EVENT, onAuthChange);
-    // Синхронизация между вкладками
-    window.addEventListener("storage", onAuthChange);
-
+    document.body.style.overflow = catalogOpen ? "hidden" : "";
     return () => {
-      clearTimeout(timer);
-      window.removeEventListener(AUTH_CHANGE_EVENT, onAuthChange);
-      window.removeEventListener("storage", onAuthChange);
+      document.body.style.overflow = "";
     };
-  }, [checkAuthAndUser]);
+  }, [catalogOpen]);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const q = searchQuery.trim();
-    if (q) {
-      router.push(`/search?q=${encodeURIComponent(q)}`);
-    }
-  };
-
-  const profileText = isAuthenticated ? userName || "Профиль" : "Войти";
+  const displayName = user?.first_name || user?.email?.split("@")[0] || null;
 
   return (
     <>
-      <header className="bg-white border-b border-gray-100 relative z-20">
-        <div className="w-full max-w-[1240px] mx-auto px-4 py-3 md:py-4 flex flex-col md:flex-row items-center gap-3 md:gap-6">
-          <div className="w-full md:w-auto flex items-center justify-between gap-3 shrink-0">
-            <Link href="/" className="flex items-center">
-              <img
-                src="/headLogo.png"
-                alt="Uzum Market"
-                className="h-[22px] sm:h-[26px] w-auto"
-              />
-            </Link>
-
-            <div className="flex md:hidden items-center gap-3">
-              <Link
-                href="/profile"
-                className="flex items-center gap-1.5 p-1.5 text-gray-700 hover:text-[#7000FF]"
-              >
-                <User size={22} />
-                {isAuthenticated && (
-                  <span className="text-sm font-medium max-w-[80px] truncate hidden sm:inline">
-                    {userName || ""}
-                  </span>
-                )}
-              </Link>
-              <a href="#" className="p-1.5 text-gray-700 hover:text-[#7000FF]">
-                <Heart size={22} />
-              </a>
-              <a href="#" className="p-1.5 text-gray-700 hover:text-[#7000FF]">
-                <ShoppingBag size={22} />
-              </a>
-            </div>
-
-            <button
-              onClick={() => setIsCatalogOpen(!isCatalogOpen)}
-              className="flex items-center gap-2 bg-[#F0F0FF] text-[#7000FF] px-4 py-2.5 rounded-lg font-medium hover:bg-[#E2E0FF] transition-colors shrink-0"
-            >
-              {isCatalogOpen ? <X size={20} /> : <Menu size={20} />}
-              <span className="hidden sm:inline">Каталог</span>
-            </button>
-          </div>
-
-          <form
-            onSubmit={handleSearch}
-            className="w-full flex-1 flex items-center"
-          >
-            <div className="relative w-full flex items-center">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Искать товары и категории"
-                className="w-full h-[40px] md:h-[44px] pl-4 pr-12 rounded-l-lg border border-r-0 border-gray-200 focus:outline-none focus:border-[#7000FF] text-[14px] transition-colors"
-              />
-              <button
-                type="submit"
-                className="h-[40px] md:h-[44px] px-5 bg-[#F2F4F7] text-gray-600 rounded-r-lg border border-l-0 border-gray-200 hover:bg-[#E5E7EB] transition-colors flex items-center justify-center shrink-0"
-              >
-                <Search size={18} />
-              </button>
-            </div>
-          </form>
-
-          <div className="hidden md:flex items-center gap-6 shrink-0">
-            <Link
-              href="/profile"
-              className="flex items-center gap-2 text-gray-700 hover:text-[#7000FF] transition-colors"
-            >
-              <User size={22} />
-              <span className="font-medium text-[14px] max-w-[120px] truncate">
-                {profileText}
+      <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-[1240px] flex-col items-center gap-3 px-4 py-3 md:flex-row md:gap-5 md:py-4">
+          <div className="flex w-full items-center justify-between gap-3 md:w-auto md:justify-start">
+            <Link href="/" className="flex shrink-0 items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/headLogo.png" alt="Uzum Market" className="h-[22px] w-auto sm:h-[26px]" />
+              <span className="mt-0.5 hidden rounded-md bg-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink sm:inline">
+                учебный
               </span>
             </Link>
 
-            <a
-              href="#"
-              className="flex items-center gap-2 text-gray-700 hover:text-[#7000FF] transition-colors"
-            >
-              <Heart size={22} />
-              <span className="font-medium text-[14px]">Избранное</span>
-            </a>
-            <a
-              href="#"
-              className="flex items-center gap-2 text-gray-700 hover:text-[#7000FF] transition-colors"
-            >
-              <ShoppingBag size={22} />
-              <span className="font-medium text-[14px]">Корзина</span>
-            </a>
+            <div className="flex items-center gap-1 md:hidden">
+              <IconButton href="/favorites" label="Избранное" icon={<Heart size={22} />} badge={favorites.length} />
+              <IconButton href="/cart" label="Корзина" icon={<ShoppingCart size={22} />} badge={count} />
+            </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setCatalogOpen(true)}
+            className="flex shrink-0 items-center gap-2 rounded-lg bg-brand-soft px-4 py-2.5 text-[14px] font-medium text-brand transition-colors hover:bg-brand-border md:order-first"
+          >
+            <Menu size={20} />
+            <span className="hidden sm:inline">Каталог</span>
+          </button>
+
+          <SearchBox className="w-full md:max-w-[560px]" />
+
+          <div className="hidden items-center gap-4 md:flex lg:gap-5">
+            <IconButton href="/favorites" label="Избранное" icon={<Heart size={22} />} badge={favorites.length} />
+            <IconButton href="/cart" label="Корзина" icon={<ShoppingCart size={22} />} badge={count} />
+            {user ? (
+              <UserMenu user={user} displayName={displayName ?? "Профиль"} />
+            ) : (
+              <Link
+                href="/login"
+                className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-gray-700 transition-colors hover:text-brand"
+              >
+                <User size={22} />
+                <span className="text-[14px] font-medium">Войти</span>
+              </Link>
+            )}
+          </div>
+
+          <Link
+            href="/cabinet"
+            className="hidden items-center gap-2 rounded-lg border border-dashed border-brand-border px-3 py-2 text-[13px] font-semibold text-brand transition-colors hover:bg-brand-soft xl:flex"
+          >
+            <Store size={16} /> Кабинет продавца
+          </Link>
         </div>
       </header>
 
-      {isCatalogOpen && (
+      {catalogOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex justify-center items-start pt-0 md:pt-[110px]"
-          onClick={() => setIsCatalogOpen(false)}
+          className="fixed inset-0 z-50 flex items-start justify-start bg-black/40 backdrop-blur-[2px]"
+          onClick={() => setCatalogOpen(false)}
         >
           <div
-            className="bg-white w-full max-w-[1240px] h-full md:h-auto md:max-h-[80vh] md:rounded-2xl shadow-xl p-5 md:p-8 overflow-y-auto relative animate-in fade-in zoom-in-95 duration-150"
-            onClick={(e) => e.stopPropagation()}
+            className="h-full w-full max-w-[1000px] overflow-y-auto bg-white p-5 shadow-2xl md:ml-[max(0px,calc(50vw-620px))] md:mt-[92px] md:h-auto md:rounded-3xl md:p-7"
+            onClick={(event) => {
+              event.stopPropagation();
+              // Клик по ссылке внутри панели ведёт на другую страницу — меню
+              // закрываем здесь, а не «подхватом» смены pathname.
+              if ((event.target as HTMLElement).closest("a")) setCatalogOpen(false);
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Каталог товаров"
           >
-            <div className="flex items-center justify-between mb-6 pb-3 border-b border-gray-100 md:border-none">
-              <h2 className="text-xl font-bold text-gray-900">
-                Каталог товаров
-              </h2>
+            <div className="mb-5 flex items-center justify-between border-b border-line pb-3 md:border-none md:pb-0">
+              <h2 className="text-xl font-bold text-ink">Каталог</h2>
               <button
-                onClick={() => setIsCatalogOpen(false)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500"
+                type="button"
+                onClick={() => setCatalogOpen(false)}
+                className="grid h-9 w-9 place-items-center rounded-full text-muted transition-colors hover:bg-surface"
+                aria-label="Закрыть каталог"
               >
-                <X size={22} />
+                <X size={20} />
               </button>
             </div>
 
-            <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-              {categories.length > 0 ? (
-                categories.map((cat) => (
-                  <li key={cat.id}>
-                    <Link
-                      href={`/search?category=${cat.id}`}
-                      onClick={() => setIsCatalogOpen(false)}
-                      className="flex items-center gap-3 p-3.5 bg-gray-50 rounded-xl hover:bg-[#F0F0FF] hover:text-[#7000FF] transition-colors cursor-pointer group"
+            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {categories.map((cat) => (
+                <li key={cat.id}>
+                  <Link
+                    href={`/catalog/${cat.slug}`}
+                    className="flex items-center gap-3 rounded-xl bg-surface/70 p-3 transition-colors hover:bg-brand-soft"
+                  >
+                    <span
+                      className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg"
+                      style={{ background: cat.color ?? "#F0F0FF" }}
+                      aria-hidden
                     >
-                      <Boxes
-                        size={22}
-                        className="text-gray-400 group-hover:text-[#7000FF]"
-                      />
-                      <span className="font-medium text-[15px]">
+                      {cat.emoji}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[14px] font-semibold text-ink">
                         {cat.name}
                       </span>
-                    </Link>
-                  </li>
-                ))
-              ) : (
-                <li className="text-gray-500 p-3.5">Загрузка категорий…</li>
-              )}
+                      <span className="block text-[12px] text-muted">
+                        {cat.product_count ?? 0} товаров
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
             </ul>
+
+            <div className="mt-5 grid gap-2 border-t border-line pt-4 sm:grid-cols-2">
+              <Link
+                href="/catalog"
+                className="rounded-xl bg-brand px-4 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-brand-dark"
+              >
+                Весь каталог с фильтрами
+              </Link>
+              <Link
+                href="/sellers"
+                className="rounded-xl px-4 py-3 text-center text-sm font-semibold text-brand ring-1 ring-brand-border transition-colors hover:bg-brand-soft"
+              >
+                Магазины маркетплейса
+              </Link>
+            </div>
           </div>
         </div>
       )}

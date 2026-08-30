@@ -1,21 +1,22 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import LoginForm from "@/components/auth/LoginForm";
+
+export const metadata: Metadata = {
+  title: "Вход",
+  description: "Вход в личный кабинет учебного клона Uzum Market.",
+};
 
 export default function LoginPage() {
   return (
-    <main className="min-h-screen bg-gray-50 py-10">
-      {/* 
-        Suspense обязателен для useSearchParams в Next.js 15+ при сборке.
-        fallback - это то, что покажется пользователю, пока грузится форма 
-        (можно сделать красивый скелетон, но пока просто текст).
-      */}
-      <Suspense fallback={
-        <div className="max-w-md mx-auto mt-10 p-8 text-center text-gray-500">
-          Загрузка формы входа...
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-md px-4 py-24 text-center text-sm text-muted">
+          Загружаем форму входа…
         </div>
-      }>
-        <LoginForm />
-      </Suspense>
-    </main>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

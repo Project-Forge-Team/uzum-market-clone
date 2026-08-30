@@ -1,68 +1,83 @@
-import { fetchProducts, fetchCategory } from "@/lib/api";
-import ProductCard from "@/components/ui/ProductCard";
-import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import CatalogPage from "@/components/catalog/CatalogPage";
+import { getCategoryBySlugOrId, listCategories, listProducts } from "@/lib/server/catalog";
+import { getCurrentUser } from "@/lib/server/auth";
 
-interface SearchPageProps {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+export const dynamic = "force-dynamic";
+export const metadata = { title: "Поиск по каталогу" };
+
+interface PageProps {
+  searchParams: Promise<Record<string, string | undefined>>;
 }
 
-export default async function SearchPage({ searchParams }: SearchPageProps) {
+const NUMERIC = ["min_price", "max_price", "min_rating", "page", "page_size"];
+
+function pick(sp: Record<string, string | undefined>) {
+  const params: Record<string, string | undefined> = {};
+  for (const key of [
+    "q",
+    "category",
+    "seller",
+    "ordering",
+    "discounted",
+    "in_stock",
+    ...NUMERIC,
+  ]) {
+    if (sp[key]) params[key] = sp[key];
+  }
+  return params;
+}
+
+/**
+ * Страница поиска. Те же фильтры и сортировка, что и в категории:
+ * состояние живёт в query-строке, поэтому результат можно скопировать ссылку.
+ */
+export default async function SearchPage({ searchParams }: PageProps) {
   const sp = await searchParams;
-  const q = typeof sp.q === "string" ? sp.q : "";
-  const category = typeof sp.category === "string" ? sp.category : "";
+  const params = pick(sp);
+  const user = await getCurrentUser();
+  const q = (params.q ?? "").trim();
 
-  // Параллельно: товары + имя категории (раньше ждали друг друга)
-  const [data, cat] = await Promise.all([
-    fetchProducts({
-      search: q || undefined,
-      category: category || undefined,
-      page: 1,
-    }),
-    category ? fetchCategory(category) : Promise.resolve(null),
-  ]);
+  const category = params.category ? getCategoryBySlugOrId(params.category) : null;
 
-  const products = data.results || [];
-  const total = data.count || 0;
-  const categoryName = cat?.name ?? null;
+  const list = listProducts({
+    ...params,
+    min_price: params.min_price ? Number(params.min_price) : undefined,
+    max_price: params.max_price ? Number(params.max_price) : undefined,
+    min_rating: params.min_rating ? Number(params.min_rating) : undefined,
+    page: params.page ? Number(params.page) : 1,
+    page_size: params.page_size ? Number(params.page_size) : undefined,
+    discounted: params.discounted === "1",
+    in_stock: params.in_stock === "1",
+    viewerId: user?.id ?? null,
+  });
 
   const heading = q
     ? `Результаты поиска: «${q}»`
-    : categoryName
-      ? categoryName
-      : "Все товары";
+    : category
+      ? category.name
+      : params.discounted
+        ? "Товары со скидкой"
+        : "Все товары маркетплейса";
 
   return (
-    <div className="w-full max-w-[1240px] mx-auto px-4 mt-6 mb-16">
-      <nav className="flex items-center gap-1 text-sm text-gray-500 mb-4">
-        <Link href="/" className="hover:text-[#7000FF] transition-colors">
-          Главная
-        </Link>
-        <ChevronRight size={14} />
-        <span className="text-gray-700">{heading}</span>
-      </nav>
-
-      <h1 className="text-2xl font-bold mb-2">{heading}</h1>
-      <p className="text-sm text-gray-500 mb-6">Найдено товаров: {total}</p>
-
-      {products.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          {products.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-20 text-gray-500">
-          <p className="text-lg">Ничего не найдено.</p>
-          <p className="text-sm mt-2">
-            Попробуйте изменить запрос или вернуться на{" "}
-            <Link href="/" className="text-[#7000FF] hover:underline">
-              главную
-            </Link>
-            .
-          </p>
-        </div>
-      )}
-    </div>
+    <CatalogPage
+      heading={heading}
+      subheading={
+        q
+          ? `${list.count} ${list.count === 1 ? "совпадение" : "совпадений"} по запросу`
+          : undefined
+      }
+      crumbs={[
+        { label: "Главная", href: "/" },
+        { label: "Каталог", href: "/catalog" },
+        ...(category ? [{ label: category.name, href: `/catalog/${category.slug}` }] : []),
+        { label: q || "Поиск" },
+      ]}
+      list={list}
+      basePath="/search"
+      params={params}
+      categories={listCategories()}
+      activeCategorySlug={category?.slug}
+    />
   );
 }

@@ -1,35 +1,38 @@
-"use client";
-
 import Link from "next/link";
-import type { Category } from "@/lib/api";
+import type { Category } from "@/types/product";
 
-interface CategoryNavProps {
-  categories?: Category[];
-}
-
-export default function CategoryNav({ categories = [] }: CategoryNavProps) {
-  const items =
-    categories.length > 0
-      ? categories
-      : [
-          { id: 0, name: "Электроника", slug: "elektronika" },
-          { id: 1, name: "Бытовая техника", slug: "bytovaya-tehnika" },
-        ];
+/** Горизонтальное меню категорий под шапкой. */
+export default function CategoryNav({
+  categories = [],
+  activeSlug,
+}: {
+  categories?: Array<Category & { product_count?: number }>;
+  activeSlug?: string;
+}) {
+  if (!categories.length) return null;
 
   return (
-    <nav className="bg-white border-b border-gray-100">
-      <div className="w-full max-w-[1240px] mx-auto px-4">
-        <ul className="flex items-center gap-6 py-3 overflow-x-auto">
-          {items.map((cat) => (
-            <li key={cat.id || cat.name} className="shrink-0">
-              <Link
-                href={cat.slug ? `/search?category=${cat.id}` : "#"}
-                className="text-sm font-medium text-gray-700 hover:text-[#7000FF] cursor-pointer whitespace-nowrap"
-              >
-                {cat.name}
-              </Link>
-            </li>
-          ))}
+    <nav className="border-b border-line bg-white">
+      <div className="mx-auto w-full max-w-[1240px] px-4">
+        <ul className="no-scrollbar flex items-center gap-1.5 overflow-x-auto py-2.5">
+          {categories.map((cat) => {
+            const active = cat.slug === activeSlug;
+            return (
+              <li key={cat.id} className="shrink-0">
+                <Link
+                  href={`/catalog/${cat.slug}`}
+                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                    active
+                      ? "bg-brand text-white"
+                      : "bg-surface text-gray-700 hover:bg-brand-soft hover:text-brand"
+                  }`}
+                >
+                  <span aria-hidden>{cat.emoji}</span>
+                  {cat.name}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       </div>
     </nav>

@@ -2,64 +2,81 @@
 
 import { useState } from "react";
 import ProductCard from "@/components/ui/ProductCard";
+import { ProductCardSkeleton } from "@/components/ui/ProductCardSkeleton";
 import { fetchProducts } from "@/lib/api";
-import { Product } from "@/types/product";
+import type { Product } from "@/types/product";
 
-interface RecommendedSectionProps {
-  initialProducts?: Product[];
-  initialHasMore?: boolean;
-}
+const PAGE_SIZE = 12;
 
+/** «Рекомендуем» с догрузкой следующих страниц без перезагрузки. */
 export default function RecommendedSection({
   initialProducts = [],
   initialHasMore = false,
-}: RecommendedSectionProps) {
+}: {
+  initialProducts?: Product[];
+  initialHasMore?: boolean;
+}) {
   const [products, setProducts] = useState<Product[]>(initialProducts);
-  const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(initialHasMore);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleShowMore = async () => {
-    const nextPage = page + 1;
+  const showMore = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const data = await fetchProducts({ page: nextPage, ordering: "-rating" });
-      setPage(nextPage);
-      setProducts((prev) => [...prev, ...data.results]);
-      setHasMore(!!data.next);
-    } catch (error) {
-      console.error("Ошибка загрузки товаров:", error);
+      const data = await fetchProducts({
+        page: page + 1,
+        page_size: PAGE_SIZE,
+        ordering: "",
+      });
+      setProducts((prev) => {
+        const seen = new Set(prev.map((p) => p.id));
+        return [...prev, ...data.results.filter((p) => !seen.has(p.id))];
+      });
+      setPage((prev) => prev + 1);
+      setHasMore(data.next);
+    } catch {
+      setError("Не удалось догрузить товары. Попробуйте ещё раз.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <section className="w-full max-w-[1240px] mx-auto px-4 mt-10">
-      <h2 className="text-2xl font-bold mb-6">Рекомендуем</h2>
+    <section className="mx-auto mt-12 w-full max-w-[1240px] px-4">
+      <div className="mb-5 flex items-end justify-between">
+        <h2 className="text-xl font-bold text-ink md:text-2xl">Рекомендуем</h2>
+        <p className="text-[13px] text-muted">
+          Подобрано по рейтингу и скидкам
+        </p>
+      </div>
 
-      {products.length === 0 && !loading ? (
-        <div className="text-center py-10 text-gray-500">
-          Товары пока недоступны
-        </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+        {products.map((product) => (
+          <ProductCard key={product.id} product={product} />
+        ))}
+        {loading && <ProductCardSkeleton count={4} />}
+      </div>
+
+      {error && <p className="mt-4 text-center text-sm text-red-600">{error}</p>}
+
+      {hasMore ? (
+        <button
+          type="button"
+          onClick={showMore}
+          disabled={loading}
+          className="mt-8 w-full rounded-xl bg-surface py-3.5 text-[15px] font-semibold text-gray-800 transition-colors hover:bg-[#e4e6eb] disabled:opacity-60"
+        >
+          {loading ? "Загружаем…" : "Показать ещё товары"}
+        </button>
       ) : (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-
-          {hasMore && (
-            <button
-              onClick={handleShowMore}
-              disabled={loading}
-              className="w-full bg-[#F0F2F5] hover:bg-[#E4E6EB] text-gray-800 font-medium py-4 rounded-xl transition-colors duration-200 mt-[60px] mb-[53px] disabled:opacity-50"
-            >
-              {loading ? "Загрузка..." : "Показать ещё"}
-            </button>
-          )}
-        </>
+        products.length > 0 && (
+          <p className="mt-8 text-center text-sm text-muted">
+            Это все товары из этой подборки
+          </p>
+        )
       )}
     </section>
   );

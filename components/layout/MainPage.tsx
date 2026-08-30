@@ -1,43 +1,44 @@
-import CategoryNav from "./CategoryNav";
-import HeroBanner from "./HeroBanner";
-import RecommendedSection from "./RecommendedSection";
-import SpecialOffersSection from "./SpecialOffersSection";
-import { fetchProducts, fetchCategories } from "@/lib/api";
-import type { Product } from "@/types/product";
+import HeroBanner from "@/components/layout/HeroBanner";
+import CategoryTiles from "@/components/layout/CategoryTiles";
+import RecommendedSection from "@/components/layout/RecommendedSection";
+import SpecialOffersSection from "@/components/layout/SpecialOffersSection";
+import { SellerPromo, ShopsRow, TrustStrip } from "@/components/layout/HomeExtras";
+import {
+  listCategories,
+  listProducts,
+  listSellers,
+  marketplaceStats,
+} from "@/lib/server/catalog";
 
-function pickDiscounted(products: Product[], limit = 5): Product[] {
-  return products
-    .filter((p) => p.old_price && Number(p.old_price) > Number(p.price))
-    .sort((a, b) => {
-      const da =
-        ((Number(a.old_price) - Number(a.price)) / Number(a.old_price)) * 100;
-      const db =
-        ((Number(b.old_price) - Number(b.price)) / Number(b.old_price)) * 100;
-      return db - da;
-    })
-    .slice(0, limit);
-}
-
-/** Server Component: один запрос products + один categories на всю главную */
-export default async function MainPage() {
-  const [productsData, categoriesData] = await Promise.all([
-    fetchProducts({ page: 1, page_size: 20, ordering: "-rating" }),
-    fetchCategories(),
-  ]);
-
-  const products = productsData.results || [];
-  const categories = categoriesData.results || [];
-  const offers = pickDiscounted(products, 5);
+/**
+ * Главная собирается на сервере одним проходом по локальной «БД»:
+ * категории, подборки, скидки и магазины. Клиенту остаётся только
+ * догрузка следующих страниц в блоке «Рекомендуем».
+ */
+export default function MainPage() {
+  const categories = listCategories();
+  const recommended = listProducts({ page: 1, page_size: 12, ordering: "" });
+  const offers = listProducts({ discounted: true, ordering: "discount", page_size: 12 });
+  const sellers = listSellers().slice(0, 8);
+  const stats = marketplaceStats();
 
   return (
     <>
-      <CategoryNav categories={categories} />
-      <HeroBanner />
+      {/* Заголовок первого уровня на главной: виден скринридерам и поисковикам,
+          но не мешает визуальному «как у маркетплейса» первому экрану. */}
+      <h1 className="sr-only">
+        Uzum Market — учебный клон маркетплейса: {stats.products} товаров, скидки и рассрочка
+      </h1>
+      <HeroBanner quickCategories={categories.slice(0, 8)} />
+      <CategoryTiles categories={categories} />
+      <SpecialOffersSection offers={offers.results} />
       <RecommendedSection
-        initialProducts={products}
-        initialHasMore={!!productsData.next}
+        initialProducts={recommended.results}
+        initialHasMore={recommended.next}
       />
-      <SpecialOffersSection offers={offers} />
+      <ShopsRow sellers={sellers} />
+      <SellerPromo stats={stats} />
+      <TrustStrip />
     </>
   );
 }

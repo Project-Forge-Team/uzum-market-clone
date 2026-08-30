@@ -1,120 +1,91 @@
-"use client"; // Обязательно для работы onClick
+import Link from "next/link";
+
+const COLUMNS = [
+  {
+    title: "Покупателям",
+    links: [
+      { href: "/help#delivery", label: "Доставка и оплата" },
+      { href: "/help#returns", label: "Возврат товара" },
+      { href: "/help#faq", label: "Вопросы и ответы" },
+      { href: "/help#pickup", label: "Пункты выдачи" },
+    ],
+  },
+  {
+    title: "Мой Uzum",
+    links: [
+      { href: "/profile", label: "Личный кабинет" },
+      { href: "/profile/orders", label: "Мои заказы" },
+      { href: "/favorites", label: "Избранное" },
+      { href: "/cart", label: "Корзина" },
+      { href: "/profile/reviews", label: "Мои отзывы" },
+    ],
+  },
+  {
+    title: "Продавцам",
+    links: [
+      { href: "/sell", label: "Продавать на Uzum" },
+      { href: "/cabinet", label: "Кабинет продавца" },
+      { href: "/cabinet/products/new", label: "Добавить товар" },
+      { href: "/sellers", label: "Магазины" },
+      { href: "/help#sellers", label: "Правила для магазинов" },
+    ],
+  },
+];
 
 export default function Footer() {
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
   return (
-    <footer className="bg-white border-t border-gray-100 mt-20 pb-6">
-      <div className="w-full max-w-[1240px] mx-auto px-4">
-        
-        {/* ВЕРХНЯЯ ЧАСТЬ ФУТЕРА */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 py-10">
-          
-          {/* Колонка 1: О нас */}
-          <div>
-            <h3 className="font-bold text-gray-900 mb-4">О нас</h3>
-            <ul className="space-y-3 text-sm text-gray-500">
-              <li><a href="#" className="hover:text-[#7000FF] transition-colors">Пункты выдачи</a></li>
-              <li><a href="#" className="hover:text-[#7000FF] transition-colors">Вакансии</a></li>
-            </ul>
-          </div>
-
-          {/* Колонка 2: Пользователям */}
-          <div>
-            <h3 className="font-bold text-gray-900 mb-4">Пользователям</h3>
-            <ul className="space-y-3 text-sm text-gray-500">
-              <li><a href="#" className="hover:text-[#7000FF] transition-colors">Связаться с нами</a></li>
-              <li><a href="#" className="hover:text-[#7000FF] transition-colors">Вопрос - Ответ</a></li>
-            </ul>
-          </div>
-
-          {/* Колонка 3: Для предпринимателей */}
-          <div>
-            <h3 className="font-bold text-gray-900 mb-4">Для предпринимателей</h3>
-            <ul className="space-y-3 text-sm text-gray-500">
-              <li><a href="#" className="hover:text-[#7000FF] transition-colors">Продавайте на Uzum</a></li>
-              <li><a href="#" className="hover:text-[#7000FF] transition-colors">Вход для продавцов</a></li>
-              <li><a href="#" className="hover:text-[#7000FF] transition-colors">Открыть пункт выдачи</a></li>
-            </ul>
-          </div>
-
-          {/* Колонка 4: Приложения и Соцсети (С МЕСТОМ ПОД ФОТО) */}
-          <div>
-            <h3 className="font-bold text-gray-900 mb-4">Скачать приложение</h3>
-            <div className="flex flex-wrap gap-3 mb-6">
-              
-              {/* Кнопка App Store */}
-              <a href="#" className="inline-block h-5 overflow-hidden rounded-lg  hover:opacity-80 transition-opacity">
-                <img 
-                  src="/icons/appstore.png" 
-                  alt="App Store" 
-                  className="h-full w-auto object-cover"
-                />
-              </a>
-
-              {/* Кнопка Google Play */}
-              <a href="#" className="inline-block h-5 overflow-hidden rounded-lg  hover:opacity-80 transition-opacity">
-                <img 
-                  src="/icons/googleplay.png" 
-                  alt="Google Play" 
-                  className="h-full w-auto object-cover"
-                />
-              </a>
-
+    <footer className="mt-16 border-t border-line bg-white pb-24 pt-10 md:pb-8">
+      <div className="mx-auto w-full max-w-[1240px] px-4">
+        <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
+          {COLUMNS.map((column) => (
+            <div key={column.title}>
+              <h3 className="mb-3.5 text-[15px] font-bold text-ink">{column.title}</h3>
+              <ul className="space-y-2.5 text-sm text-muted">
+                {column.links.map((link) => (
+                  <li key={link.href + link.label}>
+                    <Link href={link.href} className="transition-colors hover:text-brand">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
+          ))}
 
-            <h3 className="font-bold text-gray-900 mb-3">Uzum в соцсетях</h3>
-            <div className="flex gap-3">
-              
-              {/* Instagram */}
-              <a href="#" className="block h-10 w-10 overflow-hidden rounded-full bg-gray-100 hover:bg-pink-50 transition-colors">
-                <img src="/icons/instagram.png" alt="Instagram" className="h-full w-full object-cover p-1.5" />
-              </a>
-
-              {/* Telegram */}
-              <a href="#" className="block h-10 w-10 overflow-hidden rounded-full bg-gray-100 hover:bg-blue-50 transition-colors">
-                <img src="/icons/telegram.png" alt="Telegram" className="h-full w-full object-cover p-1.5" />
-              </a>
-
-              {/* Facebook */}
-              <a href="#" className="block h-10 w-10 overflow-hidden rounded-full bg-gray-100 hover:bg-blue-50 transition-colors">
-                <img src="/icons/facebook.png" alt="Facebook" className="h-full w-full object-cover p-1.5" />
-              </a>
-
-              {/* YouTube */}
-              <a href="#" className="block h-10 w-10 overflow-hidden rounded-full bg-gray-100 hover:bg-red-50 transition-colors">
-                <img src="/icons/youtube.png" alt="YouTube" className="h-full w-full object-cover p-1.5" />
-              </a>
-
+          <div>
+            <h3 className="mb-3.5 text-[15px] font-bold text-ink">О проекте</h3>
+            <p className="text-sm leading-relaxed text-muted">
+              Учебный клон маркетплейса: каталог, корзина, заказы, кабинет продавца и
+              отзывы работают на локальном API Next.js. Это не официальный сайт Uzum.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {["Uzcard", "Humo", "Payme", "Click"].map((pay) => (
+                <span
+                  key={pay}
+                  className="rounded-lg bg-surface px-2.5 py-1 text-[11px] font-semibold text-gray-600"
+                >
+                  {pay}
+                </span>
+              ))}
             </div>
           </div>
-
         </div>
 
-        {/* НИЖНЯЯ ПОЛОСА */}
-        <div className="border-t border-gray-100 pt-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-gray-400">
-          <div className="flex flex-wrap justify-center md:justify-start gap-x-6 gap-y-2">
-            <a href="#" className="hover:text-gray-600 transition-colors">Соглашение о конфиденциальности</a>
-            <a href="#" className="hover:text-gray-600 transition-colors">Пользовательское соглашение</a>
-            <a href="#" className="hover:text-gray-600 transition-colors">Положение по обработке персональных данных</a>
+        <div className="mt-9 flex flex-col justify-between gap-3 border-t border-line pt-5 text-xs text-gray-400 md:flex-row">
+          <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+            <Link href="/help#terms" className="transition-colors hover:text-gray-600">
+              Пользовательское соглашение
+            </Link>
+            <Link href="/help#terms" className="transition-colors hover:text-gray-600">
+              Политика конфиденциальности
+            </Link>
+            <Link href="/sell" className="transition-colors hover:text-gray-600">
+              Партнёрская программа
+            </Link>
           </div>
-          <div className="text-center md:text-right">
-            ©2026 ООО «UZUM MARKET». ИНН 309376127. Все права защищены
-          </div>
+          <p>© 2026 Uzum Market Clone · учебный проект Portfolio Forge</p>
         </div>
       </div>
-
-      {/* КНОПКА НАВЕРХ */}
-      <button 
-        onClick={scrollToTop}
-        className="fixed bottom-8 right-8 bg-[#7000FF] text-white p-3 rounded-full shadow-lg hover:bg-[#5a00cc] transition-all hover:scale-110 z-50"
-        aria-label="Наверх"
-      >
-        ↑
-      </button>
-
     </footer>
   );
 }

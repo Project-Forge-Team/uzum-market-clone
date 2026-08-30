@@ -1,76 +1,137 @@
 "use client";
 
-import { useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const slides = [
-  { id: 1, image: "/HeroImage.png", alt: "Школьный базар" },
-  { id: 2, image: "/HeroImage2.png", alt: "Летняя распродажа" }
+  {
+    id: "school",
+    image: "/banners/school.svg",
+    alt: "Школьный базар: скидки до 40% на канцелярию",
+    href: "/catalog/knigi",
+  },
+  {
+    id: "tech",
+    image: "/banners/tech.svg",
+    alt: "Техника в рассрочку на 12 месяцев",
+    href: "/catalog/elektronika",
+  },
+  {
+    id: "sell",
+    image: "/banners/sell.svg",
+    alt: "Откройте магазин на учебном маркетплейсе",
+    href: "/sell",
+  },
 ];
 
-export default function HeroBanner() {
-  const [currentSlide, setCurrentSlide] = useState(0);
+/**
+ * Баннер-карусель. Картинки локальные (public/banners), поэтому слайдер
+ * работает и без интернета. Автопрокрутку ставим на паузу при наведении.
+ */
+export default function HeroBanner({
+  quickCategories = [],
+}: {
+  quickCategories?: Array<{
+    name: string;
+    slug: string;
+    emoji: string;
+    color?: string;
+  }>;
+}) {
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
 
-  const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % slides.length);
-  const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
+  const go = useCallback(
+    (direction: number) =>
+      setIndex((prev) => (prev + direction + slides.length) % slides.length),
+    [],
+  );
+
+  useEffect(() => {
+    if (paused) return;
+    const timer = window.setInterval(() => go(1), 6000);
+    return () => window.clearInterval(timer);
+  }, [paused, go]);
 
   return (
-    <div className="w-full max-w-[1240px] mx-auto px-4 mt-6">
-      
-      {/* ВЕРХНЯЯ ЧАСТЬ: Слайдер */}
-      <div className="relative w-full h-[280px] md:h-[360px] rounded-2xl overflow-hidden bg-gray-100">
-        
-        {/* Картинка текущего слайда */}
-        <img 
-          src={slides[currentSlide].image}
-          alt={slides[currentSlide].alt} 
-          className="w-full h-full object-cover transition-opacity duration-500 ease-in-out"
-        />
-        
-        {/* Кнопки навигации - ВСЕГДА ВИДНЫ */}
-        <button 
-          onClick={prevSlide}
-          className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 p-2 rounded-full shadow-lg hover:bg-white hover:scale-110 active:scale-95 transition-all z-10"
+    <div className="mx-auto mt-5 w-full max-w-[1240px] px-4">
+      <div
+        className="relative overflow-hidden rounded-3xl bg-surface"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+      >
+        <div className="flex transition-transform duration-500 ease-out" style={{ transform: `translateX(-${index * 100}%)` }}>
+          {slides.map((slide) => (
+            <Link
+              key={slide.id}
+              href={slide.href}
+              className="relative aspect-[8/3] w-full shrink-0 sm:aspect-[16/6]"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={slide.image}
+                alt={slide.alt}
+                className="h-full w-full object-cover"
+              />
+            </Link>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => go(-1)}
+          aria-label="Предыдущий баннер"
+          className="absolute left-3 top-1/2 hidden h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-gray-700 shadow-md transition-transform hover:scale-105 active:scale-95 sm:grid"
         >
-          <ChevronLeft size={24} className="text-gray-700" />
+          <ChevronLeft size={20} />
         </button>
-        
-        <button 
-          onClick={nextSlide}
-          className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 p-2 rounded-full shadow-lg hover:bg-white hover:scale-110 active:scale-95 transition-all z-10"
+        <button
+          type="button"
+          onClick={() => go(1)}
+          aria-label="Следующий баннер"
+          className="absolute right-3 top-1/2 hidden h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-gray-700 shadow-md transition-transform hover:scale-105 active:scale-95 sm:grid"
         >
-          <ChevronRight size={24} className="text-gray-700" />
+          <ChevronRight size={20} />
         </button>
 
-        {/* Точки пагинации */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
-          {slides.map((_, index) => (
-            <div 
-              key={index}
-              className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                index === currentSlide ? 'bg-white scale-125' : 'bg-white/50'
+        <div className="absolute bottom-3.5 left-1/2 flex -translate-x-1/2 gap-1.5">
+          {slides.map((slide, i) => (
+            <button
+              key={slide.id}
+              type="button"
+              onClick={() => setIndex(i)}
+              aria-label={`Баннер ${i + 1}`}
+              className={`h-1.5 rounded-full transition-all ${
+                i === index ? "w-6 bg-white" : "w-1.5 bg-white/60 hover:bg-white/80"
               }`}
-            ></div>
+            />
           ))}
         </div>
       </div>
 
-      {/* НИЖНЯЯ ЧАСТЬ: Быстрые категории */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-        {[
-          { name: "Детский мир", icon: "/icons/ChildWorld.png", bg: "bg-purple-100" },
-          { name: "Бытовая техника", icon: "/icons/Appliances.png", bg: "bg-blue-100" },
-          { name: "Модный базар", icon: "/icons/Fashion Bazaar.png", bg: "bg-yellow-100" },
-          { name: "Школьный базар", icon: "/icons/School Bazaar.png", bg: "bg-green-100" }
-        ].map((item, idx) => (
-          <div key={idx} className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl hover:bg-gray-100 cursor-pointer transition-colors">
-            <div className={`w-10 h-10 ${item.bg} rounded-full flex items-center justify-center shrink-0 overflow-hidden`}>
-              <img src={item.icon} alt={item.name} className="w-6 h-6 object-contain" />
-            </div>
-            <span className="font-medium text-sm text-gray-800 leading-tight">{item.name}</span>
-          </div>
-        ))}
-      </div>
+      {quickCategories.length > 0 && (
+        <div className="no-scrollbar mt-3.5 flex gap-2.5 overflow-x-auto pb-1">
+          {quickCategories.map((item) => (
+            <Link
+              key={item.slug}
+              href={`/catalog/${item.slug}`}
+              className="flex shrink-0 items-center gap-2.5 rounded-2xl bg-surface/70 px-3.5 py-2.5 transition-colors hover:bg-brand-soft"
+            >
+              <span
+                className="grid h-9 w-9 place-items-center rounded-xl text-[17px]"
+                style={{ background: item.color }}
+                aria-hidden
+              >
+                {item.emoji}
+              </span>
+              <span className="whitespace-nowrap text-[13px] font-semibold text-ink">
+                {item.name}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

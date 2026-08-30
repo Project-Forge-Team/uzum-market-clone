@@ -1,73 +1,244 @@
-import { Product } from "@/types/product";
+/**
+ * Клиентский API-слой (работает в браузере).
+ *
+ * Все запросы идут на same-origin `/api/*` — их обслуживают локальные
+ * route handlers в app/api/**. Если понадобится вернуть внешний Django
+ * бэкенд, достаточно включить прокси в app/api/[...path]/route.ts и
+ * убрать локальные обработчики: пути специально совпадают.
+ */
+import type {
+  Category,
+  Product,
+  ProductListResponse,
+  Review,
+  ReviewSummary,
+  Seller,
+  SellerStats,
+  ShopOrder,
+  UserProfile,
+} from "@/types/product";
 
-// ==========================================
-// 0. БАЗА API
-// ==========================================
-const RAW_BACKEND_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://backend-uzum-market.onrender.com/api";
-  
-const API_BASE = RAW_BACKEND_URL.replace(/\/+$/, "");
-
-function getApiBase(): string {
-  if (typeof window === "undefined") {
-    return API_BASE; // сервер (SSR на Vercel): напрямую в Django
-  }
-  return "/api"; // браузер: через same-origin прокси app/api/[...path]/route.ts
-}
-
-// ==========================================
-// 1. ТИПЫ И ИНТЕРФЕЙСЫ
-// ==========================================
-
-export interface PaginatedResponse<T> {
-  count: number;
-  page_size?: number;
-  total_pages?: number;
-  next: string | null;
-  previous: string | null;
-  results: T[];
-}
-
-export type ProductListResponse = PaginatedResponse<Product>;
+export type {
+  Category,
+  Product,
+  Review,
+  Seller,
+  ShopOrder,
+  UserProfile,
+};
 
 export interface FetchProductsParams {
-  page?: number;
-  page_size?: number;
-  category?: string;
-  category_slug?: string;
-  seller?: string;
+  q?: string;
+  category?: string | number;
+  seller?: string | number;
   min_price?: string | number;
   max_price?: string | number;
   min_rating?: string | number;
-  is_ad?: boolean;
   discounted?: boolean;
-  search?: string;
+  in_stock?: boolean;
   ordering?: string;
+  page?: number;
+  page_size?: number;
+  ids?: number[];
+  status?: string;
 }
 
-export interface Category {
-  id: number;
-  name: string;
-  slug: string;
-}
-export type CategoryListResponse = PaginatedResponse<Category>;
+const CSRF_COOKIE_NAME = "uzum_csrf";
+export const AUTH_CHANGE_EVENT = "uzum:auth-change";
 
-export interface Seller {
-  id: number;
-  name: string;
-  rating: string | number;
-  reviews_count: number;
+export class ApiRequestError extends Error {
+  status: number;
+  fields?: Record<string, string>;
+
+  constructor(status: number, message: string, fields?: Record<string, string>) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.fields = fields;
+  }
 }
-export type SellerListResponse = PaginatedResponse<Seller>;
+
+function readCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${escaped}=([^;]*)`));
+  return match?.[1] ?? null;
+}
+
+let csrfPromise: Promise<string | null> | null = null;
+
+/** GET /api/auth/csrf — браузер получает куку и кладёт её в заголовок. */
+export async function ensureCsrfToken(): Promise<string | null> {
+  const existing = readCookie(CSRF_COOKIE_NAME);
+  if (existing) return existing;
+  if (csrfPromise) return csrfPromise;
+
+  csrfPromise = (async () => {
+    try {
+      await fetch("/api/auth/csrf", { credentials: "include", cache: "no-store" });
+      return readCookie(CSRF_COOKIE_NAME);
+    } catch {
+      return null;
+    } finally {
+      csrfPromise = null;
+    }
+  })();
+  return csrfPromise;
+}
+
+export function notifyAuthChange() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_CHANGE_EVENT));
+  }
+}
+
+async function request<T>(
+  path: string,
+  init: RequestInit & { withCsrf?: boolean } = {},
+): Promise<T> {
+  const method = (init.method ?? "GET").toUpperCase();
+  const headers = new Headers(init.headers);
+  headers.set("Accept", "application/json");
+
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method) && init.withCsrf !== false) {
+    const token = await ensureCsrfToken();
+    if (token) headers.set("X-CSRFToken", token);
+  }
+  if (
+    init.body &&
+    !(init.body instanceof FormData) &&
+    !headers.has("Content-Type")
+  ) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(`/api${path}`, {
+      ...init,
+      method,
+      headers,
+      credentials: "include",
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiRequestError(0, "Нет связи с сервером. Обновите страницу.");
+  }
+
+  if (res.status === 204) return undefined as T;
+
+  const text = await res.text();
+  const data = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+
+  if (!res.ok) {
+    const detail =
+      (typeof data.detail === "string" && data.detail) ||
+      Object.entries(data)
+        .map(([, v]) => (Array.isArray(v) ? v.join(", ") : String(v)))
+        .join(" ") ||
+      `Запрос не удался (${res.status})`;
+    throw new ApiRequestError(
+      res.status,
+      detail,
+      data.fields as Record<string, string> | undefined,
+    );
+  }
+  return data as T;
+}
+
+function queryFrom(params: FetchProductsParams): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === "") continue;
+    if (key === "ids") {
+      if (Array.isArray(value) && value.length) {
+        search.set("ids", value.join(","));
+      }
+      continue;
+    }
+    if (typeof value === "boolean") {
+      if (value) search.set(key, "1");
+      continue;
+    }
+    search.set(key, String(value));
+  }
+  const qs = search.toString();
+  return qs ? `?${qs}` : "";
+}
+
+/* ---------------- Каталог ---------------- */
+
+export function fetchProducts(
+  params: FetchProductsParams = {},
+): Promise<ProductListResponse> {
+  return request<ProductListResponse>(`/products${queryFrom(params)}`);
+}
+
+export function fetchProduct(id: number | string): Promise<Product> {
+  return request<Product>(`/products/${id}`);
+}
+
+export function fetchCategories(): Promise<{
+  count: number;
+  results: Array<Category & { product_count: number }>;
+}> {
+  return request("/categories");
+}
+
+export function fetchSellers(): Promise<{
+  count: number;
+  results: Array<Seller & Partial<SellerStats>>;
+}> {
+  return request("/sellers");
+}
+
+export function fetchSeller(id: number | string): Promise<Seller & { products: Product[] }> {
+  return request(`/sellers/${id}`);
+}
+
+/* ---------------- Отзывы ---------------- */
+
+export function fetchReviews(productId: number): Promise<{
+  summary: ReviewSummary;
+  results: Review[];
+}> {
+  return request(`/products/${productId}/reviews`);
+}
+
+export function submitReview(
+  productId: number,
+  payload: { rating: number; text: string; pros?: string; cons?: string },
+): Promise<{ id: number; updated: boolean; detail: string }> {
+  return request(`/products/${productId}/reviews`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteReview(reviewId: number): Promise<{ detail: string }> {
+  return request(`/reviews/${reviewId}`, { method: "DELETE" });
+}
+
+export function replyToReview(
+  reviewId: number,
+  reply: string,
+): Promise<{ detail: string }> {
+  return request(`/reviews/${reviewId}/reply`, {
+    method: "POST",
+    body: JSON.stringify({ reply }),
+  });
+}
+
+/* ---------------- Авторизация ---------------- */
 
 export interface RegisterPayload {
   email: string;
   password: string;
   password2: string;
-  first_name?: string;
+  first_name: string;
   last_name?: string;
   phone?: string;
+  shop_name?: string;
 }
 
 export interface LoginPayload {
@@ -75,454 +246,179 @@ export interface LoginPayload {
   password: string;
 }
 
-export interface UserProfile {
-  id: number;
-  email: string;
-  first_name: string;
-  last_name: string;
-  phone: string;
-  date_joined?: string;
-}
-
-// Тип для безопасной обработки ошибок от API (без использования `any`)
-interface ErrorResponse {
-  detail?: string;
-  [key: string]: unknown;
-}
-
-// ==========================================
-// 2. БАЗОВЫЕ ФУНКЦИИ FETCH
-// ==========================================
-
-type FetchOptions = RequestInit & {
-  next?: { revalidate?: number | false; tags?: string[] };
-  cache?: RequestCache;
-};
-
-async function fetchWithTimeout(
-  url: string,
-  options: FetchOptions = {},
-  timeoutMs = 15000,
-): Promise<Response> {
-  const timeoutSignal =
-    typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
-      ? AbortSignal.timeout(timeoutMs)
-      : undefined;
-
-  let signal: AbortSignal | undefined = options.signal ?? undefined;
-
-  if (timeoutSignal && options.signal) {
-    const AnyAbort = AbortSignal as unknown as {
-      any?: (signals: AbortSignal[]) => AbortSignal;
-    };
-    signal = AnyAbort.any
-      ? AnyAbort.any([options.signal, timeoutSignal])
-      : timeoutSignal;
-  } else if (timeoutSignal) {
-    signal = timeoutSignal;
-  } else if (!options.signal) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const res = await fetch(url, { ...options, signal: controller.signal });
-      clearTimeout(timeoutId);
-      return res;
-    } catch (err) {
-      clearTimeout(timeoutId);
-      throw err;
-    }
-  }
-
-  return fetch(url, { ...options, signal });
-}
-
-// Бэкенд на Render free tier «засыпает» и просыпается ~50 секунд,
-// поэтому запросы авторизации ждём дольше обычного.
-const AUTH_TIMEOUT_MS = 60_000;
-
-/**
- * Человекочитаемое сообщение для сетевых сбоев (сервер не ответил,
- * соединение оборвалось). Возвращает null, если ошибка не сетевая.
- */
-function networkErrorMessage(err: unknown): string | null {
-  if (err instanceof TypeError) {
-    return "Не удалось связаться с сервером. Если бэкенд долго «спал» (Render), он просыпается до минуты — подождите и попробуйте ещё раз.";
-  }
-  if (
-    typeof DOMException !== "undefined" &&
-    err instanceof DOMException &&
-    (err.name === "TimeoutError" || err.name === "AbortError")
-  ) {
-    return "Сервер не ответил вовремя. Бэкенд на Render может просыпаться до минуты после простоя — попробуйте ещё раз.";
-  }
-  return null;
-}
-
-// ==========================================
-// 3. CSRF (double-submit для unsafe-запросов)
-// ==========================================
-
-const CSRF_COOKIE_NAME = "uzum_csrf";
-
-function readCsrfCookie(): string | null {
-  if (typeof document === "undefined") return null;
-  const escaped = CSRF_COOKIE_NAME.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = document.cookie.match(
-    new RegExp(`(?:^|;\\s*)${escaped}=([^;]*)`),
-  );
-  return match?.[1] ?? null;
-}
-
-let csrfPromise: Promise<string | null> | null = null;
-
-async function ensureCsrfToken(): Promise<string | null> {
-  if (typeof document === "undefined") return null;
-
-  const existing = readCsrfCookie();
-  if (existing) return existing;
-
-  if (csrfPromise) return csrfPromise;
-
-  csrfPromise = (async () => {
-    try {
-      await fetchWithTimeout(
-        `${getApiBase()}/auth/csrf/`,
-        {
-          method: "GET",
-          credentials: "include",
-          headers: { Accept: "application/json" },
-          cache: "no-store",
-        },
-        AUTH_TIMEOUT_MS,
-      );
-      return readCsrfCookie();
-    } catch {
-      return readCsrfCookie();
-    } finally {
-      csrfPromise = null;
-    }
-  })();
-
-  return csrfPromise;
-}
-
-async function buildHeaders(
-  method: string,
-  headers?: HeadersInit,
-): Promise<Headers> {
-  const result = new Headers(headers);
-  result.set("Accept", "application/json");
-
-  if (["POST", "PUT", "PATCH", "DELETE"].includes(method.toUpperCase())) {
-    const token = await ensureCsrfToken();
-    if (token) result.set("X-CSRFToken", token);
-  }
-
-  return result;
-}
-
-// ==========================================
-// 4. ОБНОВЛЕНИЕ / ЗАЩИЩЁННЫЙ FETCH
-// ==========================================
-
-let refreshPromise: Promise<boolean> | null = null;
-
-async function refreshAccessToken(): Promise<boolean> {
-  if (refreshPromise) return refreshPromise;
-
-  refreshPromise = (async () => {
-    try {
-      const headers = await buildHeaders("POST", {
-        Accept: "application/json",
-      });
-      const refreshRes = await fetchWithTimeout(
-        `${getApiBase()}/auth/refresh/`,
-        {
-          method: "POST",
-          headers,
-          credentials: "include",
-          cache: "no-store",
-        },
-        30_000,
-      );
-      return refreshRes.ok;
-    } catch {
-      return false;
-    } finally {
-      refreshPromise = null;
-    }
-  })();
-
-  return refreshPromise;
-}
-
-export async function authFetch(
-  url: string,
-  options: RequestInit = {},
-): Promise<Response> {
-  const method = options.method || "GET";
-  const headers = await buildHeaders(method, options.headers);
-
-  let response = await fetchWithTimeout(
-    url,
-    {
-      ...options,
-      headers,
-      credentials: "include",
-      cache: "no-store",
-    },
-    AUTH_TIMEOUT_MS,
-  );
-
-  if (response.status === 401) {
-    const refreshed = await refreshAccessToken();
-
-    if (refreshed) {
-      const retryHeaders = await buildHeaders(method, options.headers);
-      response = await fetchWithTimeout(
-        url,
-        {
-          ...options,
-          headers: retryHeaders,
-          credentials: "include",
-          cache: "no-store",
-        },
-        AUTH_TIMEOUT_MS,
-      );
-    } else {
-      return response;
-    }
-  }
-
-  return response;
-}
-
-function publicGetOptions(revalidateSeconds: number): FetchOptions {
-  return {
-    headers: { Accept: "application/json" },
-    next: { revalidate: revalidateSeconds },
-  };
-}
-
-// ==========================================
-// 5. ПУБЛИЧНЫЕ ЭНДПОИНТЫ
-// ==========================================
-
-export async function fetchProducts(
-  params?: FetchProductsParams,
-): Promise<ProductListResponse> {
-  const query = new URLSearchParams();
-  if (params?.page) query.set("page", String(params.page));
-  if (params?.page_size) query.set("page_size", String(params.page_size));
-  if (params?.category) query.set("category", params.category);
-  if (params?.category_slug) query.set("category_slug", params.category_slug);
-  if (params?.seller) query.set("seller", params.seller);
-  if (params?.min_price !== undefined)
-    query.set("min_price", String(params.min_price));
-  if (params?.max_price !== undefined)
-    query.set("max_price", String(params.max_price));
-  if (params?.min_rating !== undefined)
-    query.set("min_rating", String(params.min_rating));
-  if (params?.is_ad !== undefined) query.set("is_ad", String(params.is_ad));
-  if (params?.discounted !== undefined)
-    query.set("discounted", String(params.discounted));
-  if (params?.search) query.set("search", params.search);
-  if (params?.ordering) query.set("ordering", params.ordering);
-
-  try {
-    const res = await fetchWithTimeout(
-      `${getApiBase()}/products/?${query.toString()}`,
-      publicGetOptions(60),
-      20000,
-    );
-
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } catch (error) {
-    console.error("Ошибка загрузки товаров:", error);
-    return { count: 0, next: null, previous: null, results: [] };
-  }
-}
-
-export async function fetchProduct(
-  id: number | string,
-): Promise<Product | null> {
-  try {
-    const res = await fetchWithTimeout(
-      `${getApiBase()}/products/${id}/`,
-      publicGetOptions(120),
-      20000,
-    );
-
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (error) {
-    console.error("Ошибка загрузки товара:", error);
-    return null;
-  }
-}
-
-export async function fetchCategories(): Promise<CategoryListResponse> {
-  try {
-    const res = await fetchWithTimeout(
-      `${getApiBase()}/categories/`,
-      publicGetOptions(3600),
-      20000,
-    );
-
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } catch (error) {
-    console.error("Ошибка загрузки категорий:", error);
-    return { count: 0, next: null, previous: null, results: [] };
-  }
-}
-
-export async function fetchCategory(
-  id: number | string,
-): Promise<Category | null> {
-  try {
-    const res = await fetchWithTimeout(
-      `${getApiBase()}/categories/${id}/`,
-      publicGetOptions(3600),
-      20000,
-    );
-
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (error) {
-    console.error("Ошибка загрузки категории:", error);
-    return null;
-  }
-}
-
-export async function fetchSellers(): Promise<SellerListResponse> {
-  try {
-    const res = await fetchWithTimeout(
-      `${getApiBase()}/sellers/`,
-      publicGetOptions(300),
-      20000,
-    );
-
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } catch (error) {
-    console.error("Ошибка загрузки продавцов:", error);
-    return { count: 0, next: null, previous: null, results: [] };
-  }
-}
-
-// ==========================================
-// 6. ЭНДПОИНТЫ АВТОРИЗАЦИИ
-// ==========================================
-
-export async function registerUser(
-  data: RegisterPayload,
-): Promise<UserProfile> {
-  const headers = await buildHeaders("POST", {
-    "Content-Type": "application/json",
-    Accept: "application/json",
+export function registerUser(data: RegisterPayload): Promise<UserProfile> {
+  return request<UserProfile>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(data),
   });
-  let res: Response;
-  try {
-    res = await fetchWithTimeout(
-      `${getApiBase()}/auth/register/`,
-      {
-        method: "POST",
-        headers,
-        credentials: "include",
-        body: JSON.stringify(data),
-        cache: "no-store",
-      },
-      AUTH_TIMEOUT_MS,
-    );
-  } catch (err) {
-    throw new Error(
-      networkErrorMessage(err) ??
-        (err instanceof Error ? err.message : "Ошибка при регистрации"),
-    );
-  }
-
-  if (!res.ok) {
-    // Безопасное приведение типа без использования `any`
-    const errorData = (await res.json().catch(() => ({}))) as ErrorResponse;
-    const errorMessage =
-      Object.values(errorData)
-        .map((val) => (Array.isArray(val) ? val.join(", ") : String(val)))
-        .join(" ") || "Ошибка при регистрации";
-    throw new Error(errorMessage);
-  }
-
-  return res.json();
 }
 
-export async function loginUser(data: LoginPayload): Promise<UserProfile> {
-  const headers = await buildHeaders("POST", {
-    "Content-Type": "application/json",
-    Accept: "application/json",
+export function loginUser(data: LoginPayload): Promise<UserProfile> {
+  return request<UserProfile>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify(data),
   });
-  let res: Response;
-  try {
-    res = await fetchWithTimeout(
-      `${getApiBase()}/auth/login/`,
-      {
-        method: "POST",
-        headers,
-        credentials: "include",
-        body: JSON.stringify(data),
-        cache: "no-store",
-      },
-      AUTH_TIMEOUT_MS,
-    );
-  } catch (err) {
-    throw new Error(
-      networkErrorMessage(err) ??
-        (err instanceof Error ? err.message : "Ошибка при входе"),
-    );
-  }
-
-  if (!res.ok) {
-    // Безопасное приведение типа без использования `any`
-    const errorData = (await res.json().catch(() => ({}))) as ErrorResponse;
-    const errorMessage =
-      errorData.detail ||
-      Object.values(errorData)
-        .map((val) => (Array.isArray(val) ? val.join(", ") : String(val)))
-        .join(" ") ||
-      "Ошибка при входе";
-    throw new Error(errorMessage);
-  }
-
-  return res.json();
 }
 
 export async function logoutUser(): Promise<void> {
-  const headers = await buildHeaders("POST", {
-    Accept: "application/json",
-  });
-  const res = await fetchWithTimeout(
-    `${getApiBase()}/auth/logout/`,
-    {
-      method: "POST",
-      headers,
-      credentials: "include",
-      cache: "no-store",
-    },
-    30_000,
-  );
-
-  if (!res.ok) {
-    throw new Error(`Не удалось выйти (${res.status})`);
-  }
+  await request<{ detail: string }>("/auth/logout", { method: "POST" });
+  notifyAuthChange();
 }
 
-export async function fetchMe(): Promise<UserProfile | null> {
-  try {
-    const res = await authFetch(`${getApiBase()}/auth/me/`);
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (error) {
-    console.error("Ошибка получения профиля:", error);
-    return null;
-  }
+export function fetchMe(): Promise<UserProfile | null> {
+  return request<UserProfile>("/auth/me").catch(() => null);
+}
+
+export function updateMe(
+  patch: Partial<Pick<UserProfile, "first_name" | "last_name" | "phone" | "email">>,
+): Promise<UserProfile> {
+  return request<UserProfile>("/auth/me", {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function changePassword(current: string, next: string) {
+  return request<{ detail: string }>("/auth/password", {
+    method: "POST",
+    body: JSON.stringify({ current, next }),
+  });
+}
+
+/* ---------------- Кабинет продавца ---------------- */
+
+export interface ProductPayload {
+  title: string;
+  description: string;
+  price: number;
+  old_price: number | null;
+  stock: number;
+  category_id: number;
+  delivery_time: string;
+  brand?: string;
+  images: string[];
+  characteristics: Record<string, string>;
+  status: "active" | "draft" | "archived";
+  is_ad?: boolean;
+}
+
+export function fetchMyProducts(): Promise<{ results: Product[] }> {
+  return request("/products/mine");
+}
+
+export function createProduct(payload: ProductPayload): Promise<{ id: number }> {
+  return request("/products", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateProduct(id: number, payload: Partial<ProductPayload>) {
+  return request<{ id: number }>(`/products/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function setProductStatus(id: number, status: string) {
+  return request<{ detail: string }>(`/products/${id}/status`, {
+    method: "POST",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export function deleteProduct(id: number) {
+  return request<{ detail: string }>(`/products/${id}`, { method: "DELETE" });
+}
+
+export function fetchShop(): Promise<Seller | null> {
+  return request<Seller | null>("/shop");
+}
+
+export function createShop(name: string) {
+  return request<{ id: number; detail: string }>("/shop", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function updateShop(patch: {
+  name?: string;
+  description?: string;
+  city?: string;
+}) {
+  return request<{ detail: string }>("/shop", {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function uploadImage(file: File): Promise<{ url: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  return request<{ url: string }>("/uploads", {
+    method: "POST",
+    body: form, // FormData: Content-Type с boundary браузер поставит сам
+  });
+}
+
+export function countProductView(id: number) {
+  return request(`/products/${id}/view`, { method: "POST" }).catch(() => null);
+}
+
+/* ---------------- Заказы ---------------- */
+
+export interface CheckoutPayload {
+  items: Array<{ product_id: number; qty: number }>;
+  address: string;
+  pickup_point?: string;
+  delivery_method: "courier" | "pickup";
+  payment_method: "card" | "cash" | "installment";
+  comment?: string;
+  promo_code?: string;
+}
+
+export function createOrder(payload: CheckoutPayload): Promise<{ id: number }> {
+  return request<{ id: number }>("/orders", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function previewTotals(payload: {
+  subtotal: number;
+  delivery_method: "courier" | "pickup";
+  promo_code?: string;
+}) {
+  return request<{
+    discount: number;
+    delivery_cost: number;
+    total: number;
+    promo_label: string | null;
+  }>("/orders", { method: "PUT", body: JSON.stringify(payload), withCsrf: false });
+}
+
+export function fetchOrders(): Promise<{ count: number; results: ShopOrder[] }> {
+  return request("/orders");
+}
+
+export function fetchOrder(id: number | string): Promise<ShopOrder> {
+  return request(`/orders/${id}`);
+}
+
+export function updateOrderStatus(id: number, action: "advance" | "cancel") {
+  return request<{ status: string }>(`/orders/${id}/status`, {
+    method: "POST",
+    body: JSON.stringify({ action }),
+  });
+}
+
+/* ---------------- Служебное для демо ---------------- */
+
+export function resetDemoData() {
+  return request<{ detail: string }>("/demo/reset", { method: "POST" });
+}
+
+export function fetchSellerOrders(): Promise<{ results: ShopOrder[] }> {
+  return request("/shop/orders");
 }

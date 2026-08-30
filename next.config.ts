@@ -3,6 +3,10 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   skipTrailingSlashRedirect: true,
 
+  // Песочница/превью отдаёт dev-сервер по внешнему хосту *.e2b.app —
+  // без этого Next блокирует кросс-ориджин запросы к /_next/* в dev-режиме.
+  allowedDevOrigins: ["*.e2b.app", "*.localhost"],
+
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "placehold.co", pathname: "/**" },

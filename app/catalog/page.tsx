@@ -1,17 +1,20 @@
 import Link from "next/link";
 import { ArrowRight, Sparkles, Store } from "lucide-react";
 import SectionHeader from "@/components/ui/SectionHeader";
-import { listCategories, listSellers, marketplaceStats } from "@/lib/server/catalog";
+import { listCategories, listSellers, marketplaceStats } from "@/lib/api-server";
 import { formatNumber } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Каталог" };
 
 /** Витрина категорий: с неё начинают те, кто ещё не знает, что искать. */
-export default function CatalogIndexPage() {
-  const categories = listCategories();
-  const sellers = listSellers().slice(0, 6);
-  const stats = marketplaceStats();
+export default async function CatalogIndexPage() {
+  const [categories, sellers, stats] = await Promise.all([
+    listCategories(),
+    listSellers(),
+    marketplaceStats(),
+  ]);
+  const topSellers = sellers.slice(0, 6);
 
   return (
     <div className="mx-auto w-full max-w-[1240px] px-4 py-6">
@@ -72,7 +75,7 @@ export default function CatalogIndexPage() {
           <Store size={20} className="text-brand" />
           <h2 className="mt-3 text-lg font-bold text-ink">Магазины недели</h2>
           <ul className="mt-3 space-y-2">
-            {sellers.map((seller) => (
+            {topSellers.map((seller) => (
               <li key={seller.id}>
                 <Link
                   href={`/shop/${seller.slug}`}

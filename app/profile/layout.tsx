@@ -9,7 +9,7 @@ import {
   Store,
   UserRound,
 } from "lucide-react";
-import { getCurrentUser, publicUser } from "@/lib/server/auth";
+import { getCurrentUser, publicUser } from "@/lib/api-server";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Личный кабинет" };

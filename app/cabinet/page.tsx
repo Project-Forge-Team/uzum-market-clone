@@ -13,9 +13,7 @@ import {
 import EmptyState from "@/components/ui/EmptyState";
 import StatCard from "@/components/ui/StatCard";
 import ProductCard from "@/components/ui/ProductCard";
-import { getCurrentUser } from "@/lib/server/auth";
-import { getDb } from "@/lib/server/db";
-import { sellerProducts, sellerOrders, sellerStats } from "@/lib/server/catalog";
+import { getCurrentUser, getMyShop, sellerOrders, sellerProducts, sellerStats } from "@/lib/api-server";
 import { formatNumber, productsWord } from "@/lib/format";
 import { ORDER_STATUS_LABELS } from "@/types/product";
 
@@ -23,10 +21,8 @@ export const dynamic = "force-dynamic";
 
 /** Сводка продавца: метрики, последние товары и заказы. */
 export default async function CabinetOverviewPage() {
-  const userRow = await getCurrentUser();
+  const [userRow, shop] = await Promise.all([getCurrentUser(), getMyShop()]);
   if (!userRow) return null;
-  const db = getDb();
-  const shop = userRow.seller_id ? db.sellers.find((s) => s.id === userRow.seller_id) : null;
 
   if (!shop) {
     return (
@@ -42,9 +38,11 @@ export default async function CabinetOverviewPage() {
     );
   }
 
-  const stats = sellerStats(shop.id);
-  const products = sellerProducts(shop.id);
-  const orders = sellerOrders(shop.id);
+  const [stats, products, orders] = await Promise.all([
+    sellerStats(shop.id),
+    sellerProducts(shop.id),
+    sellerOrders(shop.id),
+  ]);
   const activeProducts = products.filter((p) => p.status === "active");
 
   return (

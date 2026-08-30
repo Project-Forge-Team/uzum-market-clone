@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Store } from "lucide-react";
 import SectionHeader from "@/components/ui/SectionHeader";
 import ShopsList from "@/components/shop/ShopsList";
-import { listSellers } from "@/lib/server/catalog";
+import { listSellers } from "@/lib/api-server";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -10,8 +10,8 @@ export const metadata = {
   description: "Продавцы учебного маркетплейса: рейтинг, число товаров и страница магазина.",
 };
 
-export default function SellersPage() {
-  const sellers = listSellers();
+export default async function SellersPage() {
+  const sellers = await listSellers();
 
   return (
     <div className="mx-auto w-full max-w-[1240px] px-4 py-6">

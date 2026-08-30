@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:backend": "UZUM_DB_DIR=.local-backend/data npx tsx tests/local-backend/server.mts",
     "test": "node tests/run-node-tests.mjs",
     "build": "next build",
     "start": "next start",
@@ -30,6 +31,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.13",
     "typescript": "^5"
   }
 }

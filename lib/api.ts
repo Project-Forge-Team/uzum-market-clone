@@ -1,10 +1,11 @@
 /**
  * Клиентский API-слой (работает в браузере).
  *
- * Все запросы идут на same-origin `/api/*` — их обслуживают локальные
- * route handlers в app/api/**. Если понадобится вернуть внешний Django
- * бэкенд, достаточно включить прокси в app/api/[...path]/route.ts и
- * убрать локальные обработчики: пути специально совпадают.
+ * Все запросы идут на same-origin `/api/*` — catch-all прокси
+ * app/api/[...path]/route.ts пересылает их на бэкенд (BACKEND_URL, по
+ * умолчанию https://backend-uzum-market.onrender.com). Куки сессии и CSRF
+ * работают как same-site, CORS не нужен. Ошибки приходят в формате
+ * { detail, fields }: detail показываем как есть, fields — подсветка полей.
  */
 import type {
   Category,
@@ -131,12 +132,22 @@ async function request<T>(
   const data = text ? (JSON.parse(text) as Record<string, unknown>) : {};
 
   if (!res.ok) {
-    const detail =
+    let detail =
       (typeof data.detail === "string" && data.detail) ||
       Object.entries(data)
         .map(([, v]) => (Array.isArray(v) ? v.join(", ") : String(v)))
         .join(" ") ||
       `Запрос не удался (${res.status})`;
+
+    // Rate limit входа/регистрации (10/мин/IP): в detail бэкенда —
+    // «Available in N seconds», показываем человекочитаемое.
+    if (res.status === 429) {
+      const seconds = /available in (\d+)/i.exec(detail)?.[1];
+      detail = seconds
+        ? `Слишком много попыток. Подождите ${seconds} сек.`
+        : "Слишком много попыток. Подождите минуту.";
+    }
+
     throw new ApiRequestError(
       res.status,
       detail,

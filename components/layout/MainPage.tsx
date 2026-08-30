@@ -8,19 +8,22 @@ import {
   listProducts,
   listSellers,
   marketplaceStats,
-} from "@/lib/server/catalog";
+} from "@/lib/api-server";
 
 /**
- * Главная собирается на сервере одним проходом по локальной «БД»:
+ * Главная собирается на сервере одним запросом к бэкенду:
  * категории, подборки, скидки и магазины. Клиенту остаётся только
  * догрузка следующих страниц в блоке «Рекомендуем».
  */
-export default function MainPage() {
-  const categories = listCategories();
-  const recommended = listProducts({ page: 1, page_size: 12, ordering: "" });
-  const offers = listProducts({ discounted: true, ordering: "discount", page_size: 12 });
-  const sellers = listSellers().slice(0, 8);
-  const stats = marketplaceStats();
+export default async function MainPage() {
+  const [categories, recommended, offers, sellers, stats] = await Promise.all([
+    listCategories(),
+    listProducts({ page: 1, page_size: 12, ordering: "" }),
+    listProducts({ discounted: true, ordering: "discount", page_size: 12 }),
+    listSellers(),
+    marketplaceStats(),
+  ]);
+  const topSellers = sellers.slice(0, 8);
 
   return (
     <>
@@ -36,7 +39,7 @@ export default function MainPage() {
         initialProducts={recommended.results}
         initialHasMore={recommended.next}
       />
-      <ShopsRow sellers={sellers} />
+      <ShopsRow sellers={topSellers} />
       <SellerPromo stats={stats} />
       <TrustStrip />
     </>

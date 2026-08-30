@@ -42,13 +42,82 @@ export function freePort() {
   });
 }
 
+/** Ждёт, пока URL начнёт отвечать 2xx. */
+async function waitHttp(url, deadline) {
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(2500) });
+      if (res.ok) return true;
+    } catch {
+      /* ещё не слушает — ждём */
+    }
+    await sleep(500);
+  }
+  return false;
+}
+
+/**
+ * Поднимает локальный бэкенд (tests/local-backend/server.mts) — тот же
+ * контракт, что и прод-бэкенд, но офлайн. База — во временной папке.
+ */
+export async function startBackend({ repoRoot, dataDir, port }) {
+  const log = [];
+  const child = spawn(
+    "npx",
+    ["tsx", path.join(repoRoot, "tests", "local-backend", "server.mts")],
+    {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        NEXT_TELEMETRY_DISABLED: "1",
+        UZUM_BACKEND_PORT: String(port),
+        UZUM_DB_DIR: dataDir,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: true,
+    },
+  );
+  child.stdout.on("data", (b) => log.push(b.toString()));
+  child.stderr.on("data", (b) => log.push(b.toString()));
+
+  const ready = await waitHttp(
+    `http://127.0.0.1:${port}/api/health`,
+    Date.now() + 60_000,
+  );
+
+  return {
+    base: `http://127.0.0.1:${port}`,
+    ready,
+    tail: () => log.join("").slice(-4000),
+    stop: async () => {
+      if (child.exitCode === null) {
+        try {
+          process.kill(-child.pid, "SIGTERM");
+        } catch {
+          child.kill("SIGTERM");
+        }
+        for (let i = 0; i < 30 && child.exitCode === null; i += 1) await sleep(100);
+        if (child.exitCode === null) {
+          try {
+            process.kill(-child.pid, "SIGKILL");
+          } catch {
+            child.kill("SIGKILL");
+          }
+        }
+      }
+    },
+  };
+}
+
 /**
  * Запускает next dev в отдельной «песочнице»: демо-база (UZUM_DB_DIR) и каталог
  * сборки (NEXT_DIST_DIR) уезжают во временную папку, поэтому тесты не трогают
  * ни .data разработчика, ни рабочий .next. Порт — первый свободный.
+ * `extraEnv` — дополнительные переменные для приложения (например,
+ * BACKEND_URL на поднятый рядом локальный бэкенд).
  * @returns Promise<{ base: string, ready: boolean, tail: () => string, stop: () => Promise<void> }>
  */
-export async function startApp({ repoRoot, waitForMs = 180_000 } = {}) {
+export async function startApp({ repoRoot, waitForMs = 180_000, extraEnv = {} } = {}) {
   const sandbox = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "uzum-npm-test-"));
   const cwd = repoRoot;
   const port = await freePort();
@@ -65,6 +134,7 @@ export async function startApp({ repoRoot, waitForMs = 180_000 } = {}) {
       // с постоянным именем этот diff уже закоммичен, а не появляется заново.
       NEXT_DIST_DIR: TEST_DIST_DIR,
       UZUM_TEST_PORT: String(port),
+      ...extraEnv,
     },
     stdio: ["ignore", "pipe", "pipe"],
     detached: true,

@@ -1,16 +1,13 @@
 import SellerReviews from "@/components/seller/SellerReviews";
-import { getCurrentUser } from "@/lib/server/auth";
-import { getDb } from "@/lib/server/db";
-import { sellerReviews } from "@/lib/server/catalog";
+import { getCurrentUser, getMyShop, sellerReviews } from "@/lib/api-server";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Отзывы о товарах" };
 
 export default async function CabinetReviewsPage() {
-  const user = await getCurrentUser();
+  const [user, shop] = await Promise.all([getCurrentUser(), getMyShop()]);
   if (!user) return null;
-  const shop = user.seller_id ? getDb().sellers.find((s) => s.id === user.seller_id) : null;
-  const rows = shop ? sellerReviews(shop.id) : [];
+  const rows = shop ? await sellerReviews(shop.id) : [];
 
   return (
     <div className="space-y-4">

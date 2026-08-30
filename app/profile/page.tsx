@@ -1,7 +1,5 @@
 import ProfileOverview from "@/components/profile/ProfileOverview";
-import { getCurrentUser, publicUser } from "@/lib/server/auth";
-import { getDb } from "@/lib/server/db";
-import { listOrders, myReviews } from "@/lib/server/catalog";
+import { getCurrentUser, getMyShop, listOrders, myReviews, publicUser } from "@/lib/api-server";
 
 export const dynamic = "force-dynamic";
 
@@ -9,16 +7,18 @@ export default async function ProfilePage() {
   const userRow = await getCurrentUser();
   if (!userRow) return null; // layout уже редиректит на /login
   const user = publicUser(userRow);
-  const db = getDb();
-  const shop = user.seller_id
-    ? db.sellers.find((s) => s.id === user.seller_id) ?? null
-    : null;
+
+  const [shop, orders, reviews] = await Promise.all([
+    getMyShop(),
+    listOrders(user.id),
+    myReviews(user.id),
+  ]);
 
   return (
     <ProfileOverview
       user={user}
-      orders={listOrders(user.id)}
-      reviews={myReviews(user.id).map((review) => ({
+      orders={orders}
+      reviews={reviews.map((review) => ({
         id: review.id,
         rating: review.rating,
         text: review.text,

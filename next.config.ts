@@ -1,5 +1,13 @@
 import type { NextConfig } from "next";
 
+// Бэкенд: по умолчанию прод (Render), в dev/тестах — локальный
+// (tests/local-backend), адрес задаётся одной переменной BACKEND_URL.
+const BACKEND_ORIGIN = (
+  process.env.BACKEND_URL ?? "https://backend-uzum-market.onrender.com"
+)
+  .replace(/\/+$/, "")
+  .replace(/\/api$/, "");
+
 const nextConfig: NextConfig = {
   skipTrailingSlashRedirect: true,
 
@@ -29,7 +37,16 @@ const nextConfig: NextConfig = {
     turbopackMemoryEviction: "full",
   },
 
-  // Блок rewrites УДАЛЕН
+  // Картинки товаров бэкенд отдаёт путями /products/gen/*.svg (это его
+  // домен, а не фронта). Локальные public/products/gen/*.svg — те же файлы
+  // сида и отдаются первыми; rewrite — страховка на случай, если файл
+  // появился только на бэкенде. afterFiles-фаза: /public проверяется раньше.
+  rewrites: async () => [
+    {
+      source: "/products/gen/:path*",
+      destination: `${BACKEND_ORIGIN}/products/gen/:path*`,
+    },
+  ],
 };
 
 export default nextConfig;

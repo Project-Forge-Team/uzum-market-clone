@@ -40,6 +40,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# локальная демо-база (lib/server/db.ts) и каталог сборки, который использует npm test
+# локальная демо-база (lib/server/db.ts), база локального бэкенда (tests/local-backend)
+# и каталог сборки, который использует npm test
 .data/
+.local-backend/
 .next-test/

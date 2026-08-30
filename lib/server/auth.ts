@@ -3,8 +3,12 @@
  *  - пароль — scrypt с солью, в открытом виде нигде не хранится;
  *  - сессия — случайный токен в HttpOnly cookie (как JWT/sid у Django);
  *  - CSRF — double-submit cookie (uzum_csrf), как в реальном бэкенде.
+ *
+ * Куки запроса приходят через runWithRequestContext() — HTTP-слой (локальный
+ * бэкенд tests/local-backend) оборачивает каждый запрос в свой контекст.
+ * От Next.js этот модуль не зависит.
  */
-import { cookies } from "next/headers";
+import { AsyncLocalStorage } from "node:async_hooks";
 import crypto from "node:crypto";
 import {
   getDb,
@@ -23,49 +27,62 @@ export const SESSION_COOKIE = "uzum_sessionid";
 export const CSRF_COOKIE = "uzum_csrf";
 const SESSION_TTL_DAYS = 7;
 
-function cookieOptions() {
-  return {
-    path: "/" as const,
-    sameSite: "lax" as const,
-    // В проде (https) ставим Secure, в dev/тестах — нет, иначе кука не запишется.
-    secure: process.env.NODE_ENV === "production",
-  };
+/** Куки входящего запроса + сборщик Set-Cookie для исходящего ответа. */
+export interface RequestCookies {
+  cookies: Record<string, string>;
+  setCookie: (header: string) => void;
+}
+
+const requestStore = new AsyncLocalStorage<RequestCookies>();
+
+/** HTTP-слой оборачивает каждый запрос в этот контекст. */
+export function runWithRequestContext<T>(ctx: RequestCookies, fn: () => T): T {
+  return requestStore.run(ctx, fn);
+}
+
+function currentContext(): RequestCookies | null {
+  return requestStore.getStore() ?? null;
+}
+
+function cookieHeader(
+  name: string,
+  value: string,
+  opts: { httpOnly?: boolean; maxAge?: number },
+): string {
+  const parts = [`${name}=${value}`, "Path=/", "SameSite=Lax"];
+  // В проде (https) ставим Secure, в dev/тестах — нет, иначе кука не запишется.
+  if (process.env.NODE_ENV === "production") parts.push("Secure");
+  if (opts.httpOnly) parts.push("HttpOnly");
+  if (opts.maxAge !== undefined) parts.push(`Max-Age=${opts.maxAge}`);
+  return parts.join("; ");
 }
 
 export async function setSessionCookie(token: string) {
-  const store = await cookies();
-  store.set(SESSION_COOKIE, token, {
-    ...cookieOptions(),
-    httpOnly: true,
-    maxAge: SESSION_TTL_DAYS * 24 * 3600,
-  });
+  currentContext()?.setCookie(
+    cookieHeader(SESSION_COOKIE, token, {
+      httpOnly: true,
+      maxAge: SESSION_TTL_DAYS * 24 * 3600,
+    }),
+  );
 }
 
 export async function clearSessionCookie() {
-  const store = await cookies();
-  store.set(SESSION_COOKIE, "", {
-    ...cookieOptions(),
-    httpOnly: true,
-    maxAge: 0,
-  });
+  currentContext()?.setCookie(
+    cookieHeader(SESSION_COOKIE, "", { httpOnly: true, maxAge: 0 }),
+  );
 }
 
 /** Выдаём CSRF-куку (её читает JS и кладёт в заголовок X-CSRFToken). */
 export async function issueCsrfCookie() {
-  const store = await cookies();
-  const existing = store.get(CSRF_COOKIE)?.value;
+  const ctx = currentContext();
+  const existing = ctx?.cookies[CSRF_COOKIE];
   const token = existing || crypto.randomUUID().replace(/-/g, "");
-  store.set(CSRF_COOKIE, token, { ...cookieOptions(), httpOnly: false });
+  ctx?.setCookie(cookieHeader(CSRF_COOKIE, token, {}));
   return token;
 }
 
 export async function readSessionToken(): Promise<string | null> {
-  try {
-    const store = await cookies();
-    return store.get(SESSION_COOKIE)?.value ?? null;
-  } catch {
-    return null;
-  }
+  return currentContext()?.cookies[SESSION_COOKIE] ?? null;
 }
 
 export function findUserByToken(token: string | null): UserRow | null {
@@ -97,10 +114,18 @@ export async function requireUser(): Promise<UserRow> {
  * Если куки нет — считаем, что клиент её ещё не получил, и не блокируем:
  * учебный проект не должен ломаться из-за гонки заголовков.
  */
-export async function assertCsrf(request: Request) {
+/**
+ * Совместим с запросами и Next.js (Request), и node:http (обёртка) —
+ * нужны только method и заголовки.
+ */
+export interface RequestLike {
+  method: string;
+  headers: { get(name: string): string | null };
+}
+
+export async function assertCsrf(request: RequestLike) {
   if (["GET", "HEAD", "OPTIONS"].includes(request.method.toUpperCase())) return;
-  const store = await cookies();
-  const cookie = store.get(CSRF_COOKIE)?.value;
+  const cookie = currentContext()?.cookies[CSRF_COOKIE];
   const header =
     request.headers.get("x-csrftoken") || request.headers.get("x-xsrf-token");
   if (cookie && header && cookie !== header) {

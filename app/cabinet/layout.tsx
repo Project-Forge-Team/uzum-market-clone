@@ -8,8 +8,7 @@ import {
   PlusCircle,
   Store,
 } from "lucide-react";
-import { getCurrentUser, publicUser } from "@/lib/server/auth";
-import { getDb } from "@/lib/server/db";
+import { getCurrentUser, getMyShop, publicUser } from "@/lib/api-server";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -33,11 +32,9 @@ export default async function CabinetLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const userRow = await getCurrentUser();
+  const [userRow, shop] = await Promise.all([getCurrentUser(), getMyShop()]);
   if (!userRow) redirect("/login?redirect=/cabinet");
   const user = publicUser(userRow);
-  const db = getDb();
-  const shop = user.seller_id ? db.sellers.find((s) => s.id === user.seller_id) : null;
 
   return (
     <div className="mx-auto w-full max-w-[1240px] px-4 py-6">

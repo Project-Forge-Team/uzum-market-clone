@@ -16,10 +16,11 @@ import ProductCard from "@/components/ui/ProductCard";
 import SectionHeader from "@/components/ui/SectionHeader";
 import {
   getProductByIdOrSlug,
+  getCurrentUser,
   listReviews,
+  publicUser,
   relatedProducts,
-} from "@/lib/server/catalog";
-import { getCurrentUser, publicUser } from "@/lib/server/auth";
+} from "@/lib/api-server";
 import { formatNumber } from "@/lib/format";
 import { productsWord } from "@/lib/format";
 
@@ -31,7 +32,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  const product = getProductByIdOrSlug(id);
+  const product = await getProductByIdOrSlug(id);
   if (!product) return { title: "Товар не найден" };
   return {
     title: `${product.title}`,
@@ -49,17 +50,19 @@ export default async function ProductPage({ params }: PageProps) {
   const user = userRow ? publicUser(userRow) : null;
 
   // includeHidden по умолчанию: черновик/снятый товар вернётся только его
-  // владельцу — остальные получают 404, как и должно быть на маркетплейсе.
-  const product = getProductByIdOrSlug(id, user?.id ?? null);
+  // владельцу (бэкенд сверяет куку сессии) — остальные получают 404.
+  const product = await getProductByIdOrSlug(id, user?.id ?? null);
   if (!product) notFound();
 
-  const {
-    results: reviews,
-    summary,
-    can_review: canReview,
-    purchases,
-  } = listReviews(product.id, user?.id ?? null);
-  const related = relatedProducts(product, 10);
+  const [
+    {
+      results: reviews,
+      summary,
+      can_review: canReview,
+      purchases,
+    },
+    related,
+  ] = await Promise.all([listReviews(product.id, user?.id ?? null), relatedProducts(product, 10)]);
   const isOwner = !!user && product.seller?.owner_id === user.id;
 
   const characteristics = Object.entries(product.characteristics ?? {});

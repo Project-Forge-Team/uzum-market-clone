@@ -1,6 +1,5 @@
 import CatalogPage from "@/components/catalog/CatalogPage";
-import { getCategoryBySlugOrId, listCategories, listProducts } from "@/lib/server/catalog";
-import { getCurrentUser } from "@/lib/server/auth";
+import { getCategoryBySlugOrId, listCategories, listProducts } from "@/lib/api-server";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Поиск по каталогу" };
@@ -34,22 +33,22 @@ function pick(sp: Record<string, string | undefined>) {
 export default async function SearchPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const params = pick(sp);
-  const user = await getCurrentUser();
   const q = (params.q ?? "").trim();
 
-  const category = params.category ? getCategoryBySlugOrId(params.category) : null;
-
-  const list = listProducts({
-    ...params,
-    min_price: params.min_price ? Number(params.min_price) : undefined,
-    max_price: params.max_price ? Number(params.max_price) : undefined,
-    min_rating: params.min_rating ? Number(params.min_rating) : undefined,
-    page: params.page ? Number(params.page) : 1,
-    page_size: params.page_size ? Number(params.page_size) : undefined,
-    discounted: params.discounted === "1",
-    in_stock: params.in_stock === "1",
-    viewerId: user?.id ?? null,
-  });
+  const [category, list, categories] = await Promise.all([
+    params.category ? getCategoryBySlugOrId(params.category) : Promise.resolve(null),
+    listProducts({
+      ...params,
+      min_price: params.min_price ? Number(params.min_price) : undefined,
+      max_price: params.max_price ? Number(params.max_price) : undefined,
+      min_rating: params.min_rating ? Number(params.min_rating) : undefined,
+      page: params.page ? Number(params.page) : 1,
+      page_size: params.page_size ? Number(params.page_size) : undefined,
+      discounted: params.discounted === "1",
+      in_stock: params.in_stock === "1",
+    }),
+    listCategories(),
+  ]);
 
   const heading = q
     ? `Результаты поиска: «${q}»`
@@ -76,7 +75,7 @@ export default async function SearchPage({ searchParams }: PageProps) {
       list={list}
       basePath="/search"
       params={params}
-      categories={listCategories()}
+      categories={categories}
       activeCategorySlug={category?.slug}
     />
   );

@@ -1,7 +1,8 @@
 /**
- * Мелкие хелперы для route handlers: единый формат ответа и ошибок.
+ * Мелкие хелперы HTTP-слоя: единый формат ответа и ошибок.
+ * Фреймворк-независимы: отдаём { status, body, headers } — собирает
+ * локальный бэкенд (tests/local-backend).
  */
-import { NextResponse } from "next/server";
 
 export class ApiError extends Error {
   status: number;
@@ -14,35 +15,48 @@ export class ApiError extends Error {
   }
 }
 
-export function json<T>(data: T, init?: ResponseInit) {
-  return NextResponse.json(data, {
-    ...init,
+export interface ApiResponse {
+  status: number;
+  /** JSON-строка или бинарное тело (загруженные файлы). */
+  body: string | Buffer;
+  headers: Record<string, string>;
+}
+
+export function json<T>(
+  data: T,
+  init?: { status?: number; headers?: Record<string, string> },
+): ApiResponse {
+  return {
+    status: init?.status ?? 200,
+    body: JSON.stringify(data ?? null),
     headers: {
+      "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": "no-store",
       ...(init?.headers ?? {}),
     },
-  });
+  };
 }
 
-export function fail(err: unknown) {
+export function fail(err: unknown): ApiResponse {
   if (err instanceof ApiError) {
-    return NextResponse.json(
+    return json(
       { detail: err.message, ...(err.fields ? { fields: err.fields } : {}) },
-      { status: err.status, headers: { "Cache-Control": "no-store" } },
+      { status: err.status },
     );
   }
   console.error("[uzum api]", err);
-  return NextResponse.json(
+  return json(
     { detail: "На сервере что-то сломалось. Попробуйте ещё раз." },
-    { status: 500, headers: { "Cache-Control": "no-store" } },
+    { status: 500 },
   );
 }
 
 /**
  * Читаем JSON тела: пустое тело не роняет обработчик, а поля проверяются
  * в слое мутаций (lib/server/actions.ts) — там же рождаются понятные ошибки.
+ * Принимает и Request (Next.js), и любой объект с text() (локальный бэкенд).
  */
-export async function readJson<T>(request: Request): Promise<T> {
+export async function readJson<T>(request: { text(): Promise<string> }): Promise<T> {
   try {
     const text = await request.text();
     if (!text.trim()) return {} as T;

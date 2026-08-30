@@ -7,8 +7,7 @@ import MobileTabBar from "@/components/layout/MobileTabBar";
 import DemoNotice from "@/components/layout/DemoNotice";
 import { CartProvider } from "@/lib/cart";
 import { SessionProvider } from "@/lib/session";
-import { getCurrentUser, publicUser } from "@/lib/server/auth";
-import { listCategories } from "@/lib/server/catalog";
+import { getCurrentUser, listCategories, publicUser } from "@/lib/api-server";
 
 export const metadata: Metadata = {
   title: {
@@ -19,17 +18,15 @@ export const metadata: Metadata = {
     "Учебный клон маркетплейса: каталог товаров, корзина, заказы, отзывы покупателей и личный кабинет продавца. Данные локальные, оплата отключена.",
 };
 
-// Данные берутся из локальной «БД», поэтому страницы рендерим на каждый запрос:
-// так новый товар продавца сразу виден в каталоге.
+// Данные приходят с бэкенда (BACKEND_URL), поэтому страницы рендерим на каждый
+// запрос: новый товар продавца сразу виден в каталоге, а личное (отзывы,
+// «моя покупка») считается по куке сессии.
 export const dynamic = "force-dynamic";
 
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const [user, categories] = await Promise.all([
-    getCurrentUser(),
-    Promise.resolve(listCategories()),
-  ]);
+  const [user, categories] = await Promise.all([getCurrentUser(), listCategories()]);
 
   return (
     <html lang="ru">

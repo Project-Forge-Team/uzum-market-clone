@@ -1,16 +1,13 @@
 import ProductManager from "@/components/seller/ProductManager";
-import { getCurrentUser } from "@/lib/server/auth";
-import { getDb } from "@/lib/server/db";
-import { sellerProducts } from "@/lib/server/catalog";
+import { getCurrentUser, getMyShop, sellerProducts } from "@/lib/api-server";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Мои товары" };
 
 export default async function CabinetProductsPage() {
-  const user = await getCurrentUser();
+  const [user, shop] = await Promise.all([getCurrentUser(), getMyShop()]);
   if (!user) return null;
-  const shop = user.seller_id ? getDb().sellers.find((s) => s.id === user.seller_id) : null;
-  const products = shop ? sellerProducts(shop.id) : [];
+  const products = shop ? await sellerProducts(shop.id) : [];
 
   return (
     <div className="space-y-4">

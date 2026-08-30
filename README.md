@@ -2,8 +2,9 @@
 
 Учебно-портфолиошный клон маркетплейса: каталог, карточка товара, корзина, оформление
 заказа, отзывы — и **полный путь продавца**: публикация товаров, управление остатками,
-заказы и ответы на отзывы. Всё работает по-настоящему, но на локальной «базе данных»
-без внешнего бэкенда и без платежей.
+заказы и ответы на отзывы. Фронт ходит на настоящий API-бэкенд (Django, `BACKEND_URL`);
+для офлайн-режима и тестов в комплекте полный локальный бэкенд на том же контракте.
+Платежей нет — статусы меняются вручную.
 
 > Это не официальный Uzum. Дизайн и контент — упрощённая самодеятельность «по мотивам»,
 > тексты и «фото» товаров сгенерированы. Никаких данных реальных пользователей и
@@ -15,20 +16,31 @@
   клиентские — для интерактива (корзина, отзывы, фильтры, форма товара)
 - **TypeScript (strict)** — общие DTO в `types/product.ts` для API и клиента
 - **Tailwind CSS v4** — токены бренда в `app/globals.css` (`@theme`)
-- **route handlers** — своё API в `app/api/**`, без внешнего Django/Supabase
-- **Файловое хранилище** — `lib/server/db.ts`: JSON-«БД» в `.data/db.json` (атомарная
-  запись + сид из `lib/server/catalog.json`), пароли — `scrypt` с солью
+- **Внешний бэкенд** (Django, контракт — `docs/BACKEND_SPEC.md`): браузер ходит на
+  same-origin `/api/*`, catch-all прокси `app/api/[...path]/route.ts` пересылает запросы
+  на `BACKEND_URL` (по умолчанию — прод на Render); серверные компоненты обращаются
+  к бэкенду напрямую (`lib/api-server.ts`) с пробросом куки сессии
+- **Локальный бэкенд** — `tests/local-backend` на той же логике `lib/server`
+  (JSON-«БД» + сид из `lib/server/catalog.json`, пароли — `scrypt`): для dev/превью
+  без сети и для `npm test` офлайн
 - **react-hook-form + zod** — валидация входа, регистрации, отзыва и карточки товара
 
 ## Запуск
 
 ```bash
 npm install
+
+# вариант 1 — с прод-бэкендом (нужен исходящий доступ к Render):
 npm run dev          # http://localhost:3000
+
+# вариант 2 — полностью локально (без сети):
+npm run dev:backend  # локальный бэкенд на :8000, база в .local-backend/data
+BACKEND_URL=http://127.0.0.1:8000 npm run dev
 ```
 
-При первом запросе создаётся `.data/db.json` с демо-каталогом (10 категорий,
-10 магазинов, 42 товара, 84 отзыва). Пересобрать сид:
+Демо-каталог (10 категорий, 10 магазинов, 42 товара, 84 отзыва) живёт на бэкенде;
+локальный бэкенд при первом старте создаёт его сам в `UZUM_DB_DIR`
+(по умолчанию `.local-backend/data`). Сид и svg-«фотографии» перегенерировать:
 
 ```bash
 node scripts/gen-catalog.mjs   # пишет public/products/gen/*.svg + lib/server/catalog.json
@@ -91,15 +103,19 @@ node scripts/gen-catalog.mjs   # пишет public/products/gen/*.svg + lib/serv
 - **Корзина и избранное** живут в `localStorage` под ключами со scope
   (`u<id>` / `anon`): при входе анонимная корзина объединяется с пользовательской,
   изменения синхронизируются между вкладками, цены и остатки сверяются с API.
-- **Загрузка фото.** `POST /api/uploads` (multipart) кладёт файл в `.data/uploads/`
-  и отдаёт `/api/uploads/<имя>`; в форме товара картинки можно переставлять и удалять.
+- **Загрузка фото.** `POST /api/uploads` (multipart) кладёт файл на бэкенд и отдаёт
+  `/api/uploads/<имя>`; в форме товара картинки можно переставлять и удалять.
 - **Сессия.** HttpOnly-cookie `uzum_sessionid` (7 дней) + CSRF-кука `uzum_csrf`,
-  которая обязана прийти в заголовке `X-CSRFToken` на всех мутациях.
+  которая обязана прийти в заголовке `X-CSRFToken` на всех мутациях. Исключение —
+  `PUT /api/orders` (превью корзины): публичное, без CSRF и авторизации.
+  `401` на `GET /api/auth/me/` — это «гость», а не ошибка; на `429` (лимит 10/мин/IP
+  на входе) показываем «Подождите N сек» из тела ответа.
 
 ## API
 
-Локальные route handlers (все — same-origin `/api/*`, ошибки в формате
-`{ detail, fields? }`, список товаров — `{ count, page, results, facets, ... }`):
+Все запросы — same-origin `/api/*`, ошибки в формате `{ detail, fields? }`,
+список товаров — `{ count, page, results, facets, ... }`. Обслуживает их бэкенд
+(контракт — `docs/BACKEND_SPEC.md`), фронт только проксирует:
 
 ```
 GET  /api/categories                     список категорий
@@ -123,23 +139,28 @@ POST /api/auth/register|login|logout · GET /api/auth/me · POST /api/auth/passw
 GET  /api/auth/csrf · POST /api/demo/reset
 ```
 
-Локальные обработчики конкретные, поэтому они всегда выигрывают у catch-all
-прокси `app/api/[...path]/route.ts`. Прокси при этом живой: любой `/api/*`, для
-которого обработчика нет, уходит на `BACKEND_URL` (по умолчанию — старый Django
-на Render, отсюда и 502 в песочнице без сети). Именно через него фронт
-переключится на настоящий бэкенд — план в `docs/BACKEND_SPEC.md`, §10.
+`BACKEND_URL` задаёт адрес бэкенда (по умолчанию
+`https://backend-uzum-market.onrender.com`): прокси `app/api/[...path]/route.ts`
+нормализует трейлинг-слэш (Django APPEND_SLASH), переносит все `Set-Cookie`
+целиком и подставляет Origin бэкенда, чтобы CSRF-проверка Django проходила.
+Картинки товаров `…/products/gen/*.svg` отдаёт local `public/` (те же файлы сида);
+rewrite в `next.config.ts` дотягивает недостающее с бэкенда.
 
 ## Структура
 
 ```
-app/                    маршруты: страницы + app/api/** (route handlers)
+app/                    маршруты: страницы + app/api/[...path] (прокси на бэкенд)
 components/             layout · catalog · product · cart · checkout · profile · seller · ui
-lib/server/             db.ts (JSON-хранилище) · auth.ts · catalog.ts · actions.ts · http.ts
-lib/                    api.ts (клиент) · session.tsx · cart.tsx · format.ts · use-*.ts
+lib/api.ts              клиентский API-слой (браузер: /api/*, CSRF, 429, ошибки)
+lib/api-server.ts       серверный API-слой (RSC: fetch BACKEND_URL + кука сессии)
+lib/                    session.tsx · cart.tsx · format.ts · use-*.ts
+lib/server/             логика локального бэкенда: db · auth · catalog · actions · http
+                        (в app не импортируется — только tests/local-backend)
 types/product.ts        DTO: Product, Review, ShopOrder, UserProfile, статусы
 scripts/gen-catalog.mjs генератор демо-данных и svg-«фотографий»
 public/                 баннеры, картинки товаров, favicon
-tests/                  e2e.py (55 сквозных проверок) · run-node-tests.mjs · Playwright
+tests/                  e2e.py (55 сквозных проверок) · run-node-tests.mjs ·
+                        local-backend/ (полный бэкенд офлайн) · mock-backend · Playwright
 ```
 
 ## Проверка
@@ -147,18 +168,20 @@ tests/                  e2e.py (55 сквозных проверок) · run-nod
 ```bash
 npm run lint            # eslint (next/core-web-vitals + react-hooks)
 npx tsc --noEmit        # типы
-npm test                # поднимает app в песочнице и прогон tests/e2e.py (55 шагов)
+npm test                # поднимает app + локальный бэкенд в песочнице и прогон e2e.py
 npm run build           # продакшен-сборка
 npm start               # прод-режим на :3000
 ```
 
-`npm test` ничего не трогает в рабочей копии: демо-база и каталог сборки уезжают
-во временную папку (`UZUM_DB_DIR` / `NEXT_DIST_DIR`), порт берётся свободный,
-процесс гарантированно убивается. Скрипт идемпотентен — можно гонять подряд
-дважды и против уже запущенного сервера:
+`npm test` ничего не трогает в рабочей копии: базы приложения и бэкенда и каталог
+сборки уезжают во временную папку (`UZUM_DB_DIR` / `NEXT_DIST_DIR`), порт берётся
+свободный, процессы гарантированно убиваются. Весь прогон офлайн — внешних сервисов
+не нужен. Скрипт идемпотентен — можно гонять подряд дважды и против любого
+сервера с тем же контрактом (в том числе против прод-бэкенда):
 
 ```bash
 UZUM_BASE_URL=http://127.0.0.1:3000 python3 tests/e2e.py
+UZUM_BASE_URL=https://backend-uzum-market.onrender.com python3 tests/e2e.py
 ```
 
 ## Чего намеренно нет

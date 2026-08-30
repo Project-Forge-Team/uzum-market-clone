@@ -13,7 +13,7 @@ import {
   Store,
   Truck,
 } from "lucide-react";
-import { marketplaceStats } from "@/lib/server/catalog";
+import { marketplaceStats } from "@/lib/api-server";
 import { formatNumber } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -53,8 +53,8 @@ const RULES = [
   { icon: Banknote, title: "Оплата при получении", text: "В демо деньги не списываются: статус меняется вручную" },
 ];
 
-export default function SellPage() {
-  const stats = marketplaceStats();
+export default async function SellPage() {
+  const stats = await marketplaceStats();
 
   return (
     <div className="pb-4">

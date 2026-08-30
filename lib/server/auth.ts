@@ -12,7 +12,7 @@ import {
   nextId,
   nowIso,
   saveDb,
-  slugify,
+  uniqueSellerSlug,
   verifyPassword,
   type SellerRow,
   type UserRow,
@@ -204,7 +204,7 @@ export function registerUser(input: RegisterInput) {
   const seller: SellerRow = {
     id: nextId(db, "sellers"),
     name: shopName,
-    slug: uniqueShopSlug(db, shopName),
+    slug: uniqueSellerSlug(shopName, (slug) => db.sellers.some((s) => s.slug === slug)),
     city: "Ташкент",
     description:
       "Новый магазин на учебном маркетплейсе. Добавляем товары и оперативно отвечаем на вопросы покупателей.",
@@ -220,19 +220,6 @@ export function registerUser(input: RegisterInput) {
 
   return user;
 }
-
-function uniqueShopSlug(db: Database, name: string) {
-  const base = slugify(name);
-  let candidate = base;
-  let i = 2;
-  while (db.sellers.some((s) => s.slug === candidate)) {
-    candidate = `${base}-${i}`;
-    i += 1;
-  }
-  return candidate;
-}
-
-type Database = ReturnType<typeof getDb>;
 
 export function loginUser(email: string, password: string): UserRow {
   const db = getDb();

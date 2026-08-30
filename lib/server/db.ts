@@ -603,3 +603,19 @@ export function nextId(db: Database, collection: keyof Database["seq"]) {
 }
 
 export { slugify, nowIso };
+
+/**
+ * Слаг магазина должен быть стабильным и уникальным: по нему живут публичные
+ * ссылки /shop/<slug>. Новое название магазина слаг НЕ меняет.
+ */
+export function uniqueSellerSlug(name: string, taken?: (slug: string) => boolean) {
+  const base = slugify(name) || `shop-${Date.now().toString(36)}`;
+  let candidate = base;
+  let i = 2;
+  const busy = (slug: string) => (taken ? taken(slug) : false);
+  while (busy(candidate)) {
+    candidate = `${base}-${i}`;
+    i += 1;
+  }
+  return candidate;
+}

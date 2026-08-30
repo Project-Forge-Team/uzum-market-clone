@@ -14,6 +14,7 @@ import {
   resetDb,
   saveDb,
   slugify,
+  uniqueSellerSlug,
   verifyPassword,
   type ProductRow,
   type ProductStatus,
@@ -629,15 +630,9 @@ export function updateShop(
 
   if (input.name !== undefined) {
     const name = requireLength(clampText(input.name, 60), "Название магазина", 3, 60);
-    if (
-      db.sellers.some(
-        (s) => s.slug === slugify(name) && s.owner_id !== ownerId,
-      )
-    ) {
-      throw new ApiError(400, "Магазин с таким названием уже есть");
-    }
+    // Слаг остаётся прежним: переименование не должно ломать ссылку /shop/<slug>,
+    // которую продавец уже мог куда-то поставить. Дубли названий допустимы.
     seller.name = name;
-    seller.slug = slugify(name);
   }
   if (input.description !== undefined) {
     seller.description = clampText(input.description, 600);
@@ -659,7 +654,7 @@ export function ensureShopForUser(ownerId: number, name: string) {
   const seller = {
     id: nextId(db, "sellers"),
     name: shopName,
-    slug: slugify(shopName),
+    slug: uniqueSellerSlug(shopName, (slug) => db.sellers.some((s) => s.slug === slug)),
     city: "Ташкент",
     description: "Небольшой магазин на учебном маркетплейсе.",
     owner_id: ownerId,

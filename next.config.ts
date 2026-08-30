@@ -19,6 +19,12 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**", pathname: "/**" },
     ],
   },
+  // В песочницах и контейнерах с ограниченной памятью dev-сервер на Turbopack
+  // рисковал быть убитым: пусть агрессивнее выгружает кэш из RAM на диск.
+  experimental: {
+    turbopackMemoryEviction: "full",
+  },
+
   // Блок rewrites УДАЛЕН
 };
 

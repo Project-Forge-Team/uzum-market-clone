@@ -78,6 +78,41 @@ try {
     process.exit(1);
   }
 
+  // Прогрев: next dev компилирует каждый роут по первому запросу. На медленных
+  // раннерах (CI, 2 vCPU) первая сборка тяжёлой страницы может превысить
+  // таймаут html()-запросов в e2e.py — поэтому заранее собираем все роуты,
+  // которые e2e проверит в HTML. Статусы не важны (307/404 тоже компилируют).
+  const prewarmPaths = [
+    "/",
+    "/catalog",
+    "/catalog/elektronika",
+    "/search",
+    "/product/1",
+    "/sellers",
+    "/sell",
+    "/shop/uzum-students",
+    "/login",
+    "/register",
+    "/cart",
+    "/checkout",
+    "/cabinet",
+    "/cabinet/products",
+    "/cabinet/orders",
+    "/cabinet/reviews",
+    "/profile",
+    "/profile/orders",
+    "/profile/settings",
+  ];
+  console.log(`прогрев роутов (${prewarmPaths.length} шт, может занять минуту)…`);
+  for (const p of prewarmPaths) {
+    try {
+      await fetch(`${app.base}${p}`, { signal: AbortSignal.timeout(300_000) });
+    } catch {
+      /* роут мог ответить ошибкой — компиляция от этого уже не отменяется */
+    }
+  }
+  console.log("прогрев завершён");
+
   const suite = await runSuite(app.base);
   if (suite.spawnError) {
     console.error(

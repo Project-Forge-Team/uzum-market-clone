@@ -138,11 +138,15 @@ def login_as(email, pwd="Password123"):
     return c
 
 stranger = login_as("stranger@uzum.uz")
+st,me=stranger.call("GET","/api/auth/me")
+check(st==200 and isinstance(me,dict) and me.get("email")=="stranger@uzum.uz",
+      f"stranger вошёл, сессия жива -> {st} {str(me)[:200]}")
 st, denied = stranger.call("POST", f"/api/products/{pid}/reviews",
     {"rating": 1, "text": "Не покупал, но хочу намусорить в рейтинге, поэтому пишу отзыв просто так."})
-check(st == 403 and "только" in str(denied.get("detail", "")).lower(), f"чужой отзыв без покупки -> {st}")
+check(st == 403 and "только" in str(denied.get("detail", "")).lower(),
+      f"чужой отзыв без покупки -> {st} {str(denied)[:200]}")
 st,deln=stranger.call("DELETE",f"/api/reviews/{upd['id']}")
-check(st==403, f"чужой отзыв удалить нельзя -> {st}")
+check(st==403, f"чужой отзыв удалить нельзя -> {st} {str(deln)[:200]}")
 st, html = stranger.html(f"/product/{pid}")
 check(st == 200 and "Отзывы пишут только покупатели" in html and "Написать отзыв" not in html,
       "в карточке гость видит подсказку, а не форму отзыва")

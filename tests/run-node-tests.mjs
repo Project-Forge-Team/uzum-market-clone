@@ -166,7 +166,7 @@ try {
   if (suite.failed > 0) {
     annotateError(
       `${suite.failed} проверок e2e упало`,
-      suite.output,
+      `${suite.output}\n\n=== лог локального бэкенда (хвост) ===\n${backend.tail()}`,
     );
   }
   await app.stop();

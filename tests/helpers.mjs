@@ -1,9 +1,15 @@
 /**
- * Инфраструктура npm test: поднять приложение в изоляции, прогнать по нему
- * проверки, гарантированно убить процесс.
+ * Инфраструктура npm test: поднять мок-бэкенд и приложение в изоляции,
+ * прогнать по ним проверки, гарантированно убить процессы.
  *
- * Тесты НЕ должны тереть .data/db.json разработчика: приложение стартует с
- * UZUM_DB_DIR и NEXT_DIST_DIR во временной папке, на свободном порту, а в
+ * С переездом на внешний API у фронта больше нет своей базы: данные ему даёт
+ * бэкенд. Чтобы `npm test` оставался автономным (CI без доступа к Render и без
+ * права трогать чужой прод), рядом поднимается tests/mock-backend — он
+ * повторяет контракт из docs/BACKEND_SPEC.md. Приложение получает его адрес
+ * через BACKEND_URL.
+ *
+ * Тесты не трогают рабочую копию: база мока и каталог сборки уезжают во
+ * временную папку (UZUM_DB_DIR / NEXT_DIST_DIR), порты берутся свободные, а в
  * finally — SIGTERM всей группе процессов и rm -rf. Копировать репозиторий
  * нельзя: Turbopack отказывается работать с node_modules по симлинку.
  */
@@ -43,6 +49,69 @@ export function freePort() {
 }
 
 /**
+ * Поднимает tests/mock-backend на свободном порту. База мока живёт в песочнице
+ * (UZUM_DB_DIR), поэтому прогон не наследует данные предыдущего.
+ */
+async function startMockBackend({ repoRoot, sandbox }) {
+  const port = await freePort();
+  const log = [];
+  const child = spawn("node", [path.join(repoRoot, "tests", "mock-backend", "server.mjs")], {
+    env: {
+      ...process.env,
+      PORT: String(port),
+      HOST: "127.0.0.1",
+      BACKEND_URL: "",
+      UZUM_DB_DIR: path.join(sandbox, "backend"),
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+    detached: true,
+  });
+  const onData = (b) => {
+    const text = b.toString();
+    log.push(text);
+    if (log.length > 200) log.shift();
+    if (process.env.TEST_DEBUG) process.stdout.write(`[backend] ${text}`);
+  };
+  child.stdout.on("data", onData);
+  child.stderr.on("data", onData);
+
+  const url = `http://127.0.0.1:${port}`;
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) break;
+    try {
+      const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(2000) });
+      if (res.ok) break;
+    } catch {
+      /* ещё не слушает */
+    }
+    await sleep(300);
+  }
+
+  return {
+    url,
+    tail: () => log.join("").slice(-2000),
+    stop: async () => {
+      if (child.exitCode === null) {
+        try {
+          process.kill(-child.pid, "SIGTERM");
+        } catch {
+          child.kill("SIGTERM");
+        }
+        for (let i = 0; i < 30 && child.exitCode === null; i += 1) await sleep(100);
+        if (child.exitCode === null) {
+          try {
+            process.kill(-child.pid, "SIGKILL");
+          } catch {
+            child.kill("SIGKILL");
+          }
+        }
+      }
+    },
+  };
+}
+
+/**
  * Запускает next dev в отдельной «песочнице»: демо-база (UZUM_DB_DIR) и каталог
  * сборки (NEXT_DIST_DIR) уезжают во временную папку, поэтому тесты не трогают
  * ни .data разработчика, ни рабочий .next. Порт — первый свободный.
@@ -51,6 +120,15 @@ export function freePort() {
 export async function startApp({ repoRoot, waitForMs = 180_000 } = {}) {
   const sandbox = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "uzum-npm-test-"));
   const cwd = repoRoot;
+
+  // Бэкенд: свой мок на свободном порту, если извне не задан BACKEND_URL.
+  // Так же можно прогнать набор против настоящего API:
+  //   BACKEND_URL=https://backend-uzum-market.onrender.com npm test
+  const externalBackend = process.env.BACKEND_URL?.trim();
+  const backend = externalBackend
+    ? { url: externalBackend, stop: async () => {}, tail: () => "" }
+    : await startMockBackend({ repoRoot, sandbox });
+
   const port = await freePort();
   const log = [];
   const child = spawn("npx", ["next", "dev", "-p", String(port), "-H", "127.0.0.1"], {
@@ -58,6 +136,7 @@ export async function startApp({ repoRoot, waitForMs = 180_000 } = {}) {
     env: {
       ...process.env,
       NEXT_TELEMETRY_DISABLED: "1",
+      BACKEND_URL: backend.url,
       UZUM_DB_DIR: path.join(sandbox, "data"),
       // Отдельный каталог сборки обязателен: два `next dev` в одном проекте
       // воюют за .next/lock. Имя фиксированное (не уникальное!) — Next при
@@ -99,8 +178,10 @@ export async function startApp({ repoRoot, waitForMs = 180_000 } = {}) {
     base,
     cwd,
     ready,
-    tail: () => log.join("").slice(-4000),
+    backendUrl: backend.url,
+    tail: () => `${log.join("").slice(-4000)}${backend.tail() ? `\n[backend] ${backend.tail()}` : ""}`,
     stop: async () => {
+      await backend.stop();
       if (child.exitCode === null) {
         try {
           process.kill(-child.pid, "SIGTERM");

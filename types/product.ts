@@ -22,6 +22,12 @@ export interface Seller {
   product_count: number;
   verified: boolean;
   owner_id: number | null;
+  /**
+   * Бэкенд отдаёт эти поля в списке магазинов и в карточке магазина,
+   * но не во вложенных объектах продавца внутри товара — поэтому опциональны.
+   */
+  order_count?: number;
+  created_at?: string;
 }
 
 export interface MonthlyPayment {
@@ -167,9 +173,20 @@ export interface PaginatedResponse<T> {
   results: T[];
 }
 
+export interface ProductFacets {
+  price: { min: number; max: number };
+  categories: Array<Category & { product_count: number }>;
+}
+
 export type ProductListResponse = PaginatedResponse<Product> & {
-  facets?: {
-    price: { min: number; max: number };
-    categories: Array<Category & { product_count: number }>;
-  };
+  facets?: ProductFacets;
+};
+
+/**
+ * То же, что ProductListResponse, но с гарантированными фасетами: серверный
+ * слой (lib/server/data.ts) всегда подставляет их, поэтому витрины могут
+ * рисовать фильтр цены без проверок на undefined.
+ */
+export type ProductListResult = PaginatedResponse<Product> & {
+  facets: ProductFacets;
 };

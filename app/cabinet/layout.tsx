@@ -8,8 +8,7 @@ import {
   PlusCircle,
   Store,
 } from "lucide-react";
-import { getCurrentUser, publicUser } from "@/lib/server/auth";
-import { getDb } from "@/lib/server/db";
+import { getCurrentUser, getMyShop } from "@/lib/server/data";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -33,11 +32,10 @@ export default async function CabinetLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const userRow = await getCurrentUser();
-  if (!userRow) redirect("/login?redirect=/cabinet");
-  const user = publicUser(userRow);
-  const db = getDb();
-  const shop = user.seller_id ? db.sellers.find((s) => s.id === user.seller_id) : null;
+  const user = await getCurrentUser();
+  if (!user) redirect("/login?redirect=/cabinet");
+  // GET /shop/ у аккаунта без магазина отдаёт 200 с телом null — это не ошибка.
+  const shop = await getMyShop();
 
   return (
     <div className="mx-auto w-full max-w-[1240px] px-4 py-6">

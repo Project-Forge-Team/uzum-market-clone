@@ -1,5 +1,17 @@
 import type { NextConfig } from "next";
 
+/**
+ * Бэкенд живёт на другом домене (Django на Render). Чтобы куки сессии
+ * оставались same-site, а CORS был не нужен вообще, весь трафик к API и к
+ * картинкам товаров идёт через этот же origin и проксируется здесь.
+ */
+const BACKEND_ORIGIN = (
+  process.env.BACKEND_URL ?? "https://backend-uzum-market.onrender.com"
+)
+  .trim()
+  .replace(/\/+$/, "")
+  .replace(/\/api$/, "");
+
 const nextConfig: NextConfig = {
   skipTrailingSlashRedirect: true,
 
@@ -29,7 +41,21 @@ const nextConfig: NextConfig = {
     turbopackMemoryEviction: "full",
   },
 
-  // Блок rewrites УДАЛЕН
+  async rewrites() {
+    return [
+      // Картинки товаров бэкенд отдаёт по абсолютным путям `/products/gen/*.svg`
+      // со своего домена. Правило стоит в afterFiles (значение по умолчанию),
+      // поэтому локальные файлы из public/products/** по-прежнему выигрывают,
+      // а всё остальное подтягивается с бэкенда.
+      {
+        source: "/products/gen/:path*",
+        destination: `${BACKEND_ORIGIN}/products/gen/:path*`,
+      },
+      // Загруженные продавцами картинки отдаёт бэкенд (`/api/uploads/<key>`),
+      // но их обслуживает catch-all прокси в app/api/[...path]/route.ts —
+      // здесь дублировать не нужно.
+    ];
+  },
 };
 
 export default nextConfig;

@@ -16,7 +16,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import catalogFixture from "./catalog.json";
+import catalogFixture from "./catalog.json" with { type: "json" };
 
 /* ------------------------------------------------------------------ */
 /*  Типы данных                                                        */

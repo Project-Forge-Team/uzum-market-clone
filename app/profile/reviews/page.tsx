@@ -1,6 +1,5 @@
 import MyReviews from "@/components/profile/MyReviews";
-import { getCurrentUser } from "@/lib/server/auth";
-import { myReviews } from "@/lib/server/catalog";
+import { getCurrentUser, myReviews } from "@/lib/server/data";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Мои отзывы" };
@@ -9,14 +8,7 @@ export default async function MyReviewsPage() {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const rows = myReviews(user.id).map((review) => ({
-    ...review,
-    product: {
-      id: review.product.id,
-      title: review.product.title,
-      image: review.product.image,
-    },
-  }));
+  const rows = await myReviews();
 
   return (
     <div className="space-y-4">

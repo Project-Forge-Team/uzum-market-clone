@@ -1,10 +1,9 @@
 /**
- * Аутентификация «по-взрослому, но локально»:
- *  - пароль — scrypt с солью, в открытом виде нигде не хранится;
- *  - сессия — случайный токен в HttpOnly cookie (как JWT/sid у Django);
- *  - CSRF — double-submit cookie (uzum_csrf), как в реальном бэкенде.
+ * Аутентификация мок-бэкенда: пароли (scrypt), сессии и CSRF.
+ *
+ * Отличие от прежней версии во фронтенде — куки здесь не берутся из
+ * `next/headers`, а передаются явно: мок работает как обычный HTTP-сервер.
  */
-import { cookies } from "next/headers";
 import crypto from "node:crypto";
 import {
   getDb,
@@ -16,57 +15,12 @@ import {
   verifyPassword,
   type SellerRow,
   type UserRow,
-} from "./db";
-import { ApiError } from "./http";
+} from "./db.ts";
+import { ApiError } from "./http.ts";
 
 export const SESSION_COOKIE = "uzum_sessionid";
 export const CSRF_COOKIE = "uzum_csrf";
-const SESSION_TTL_DAYS = 7;
-
-function cookieOptions() {
-  return {
-    path: "/" as const,
-    sameSite: "lax" as const,
-    // В проде (https) ставим Secure, в dev/тестах — нет, иначе кука не запишется.
-    secure: process.env.NODE_ENV === "production",
-  };
-}
-
-export async function setSessionCookie(token: string) {
-  const store = await cookies();
-  store.set(SESSION_COOKIE, token, {
-    ...cookieOptions(),
-    httpOnly: true,
-    maxAge: SESSION_TTL_DAYS * 24 * 3600,
-  });
-}
-
-export async function clearSessionCookie() {
-  const store = await cookies();
-  store.set(SESSION_COOKIE, "", {
-    ...cookieOptions(),
-    httpOnly: true,
-    maxAge: 0,
-  });
-}
-
-/** Выдаём CSRF-куку (её читает JS и кладёт в заголовок X-CSRFToken). */
-export async function issueCsrfCookie() {
-  const store = await cookies();
-  const existing = store.get(CSRF_COOKIE)?.value;
-  const token = existing || crypto.randomUUID().replace(/-/g, "");
-  store.set(CSRF_COOKIE, token, { ...cookieOptions(), httpOnly: false });
-  return token;
-}
-
-export async function readSessionToken(): Promise<string | null> {
-  try {
-    const store = await cookies();
-    return store.get(SESSION_COOKIE)?.value ?? null;
-  } catch {
-    return null;
-  }
-}
+export const SESSION_TTL_DAYS = 7;
 
 export function findUserByToken(token: string | null): UserRow | null {
   if (!token) return null;
@@ -81,31 +35,22 @@ export function findUserByToken(token: string | null): UserRow | null {
   return db.users.find((u) => u.id === session.user_id) ?? null;
 }
 
-/** Текущий пользователь для Server Component. */
-export async function getCurrentUser(): Promise<UserRow | null> {
-  return findUserByToken(await readSessionToken());
-}
-
-export async function requireUser(): Promise<UserRow> {
-  const user = await getCurrentUser();
-  if (!user) throw new ApiError(401, "Нужно войти в аккаунт");
+export function requireUser(token: string | null): UserRow {
+  const user = findUserByToken(token);
+  if (!user) throw new ApiError(401, "Вы не авторизованы");
   return user;
 }
 
-/**
- * Проверка CSRF для «опасных» запросов.
- * Если куки нет — считаем, что клиент её ещё не получил, и не блокируем:
- * учебный проект не должен ломаться из-за гонки заголовков.
- */
-export async function assertCsrf(request: Request) {
-  if (["GET", "HEAD", "OPTIONS"].includes(request.method.toUpperCase())) return;
-  const store = await cookies();
-  const cookie = store.get(CSRF_COOKIE)?.value;
-  const header =
-    request.headers.get("x-csrftoken") || request.headers.get("x-xsrf-token");
+/** Double-submit CSRF: заголовок обязан совпасть с кукой. */
+export function assertCsrf(method: string, cookie?: string, header?: string | null) {
+  if (["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase())) return;
   if (cookie && header && cookie !== header) {
     throw new ApiError(403, "CSRF-токен не совпал. Обновите страницу.");
   }
+}
+
+export function newCsrfToken() {
+  return crypto.randomUUID().replace(/-/g, "");
 }
 
 export function createSession(userId: number): string {
@@ -115,14 +60,9 @@ export function createSession(userId: number): string {
     token,
     user_id: userId,
     created_at: nowIso(),
-    expires_at: new Date(
-      Date.now() + SESSION_TTL_DAYS * 24 * 3600 * 1000,
-    ).toISOString(),
+    expires_at: new Date(Date.now() + SESSION_TTL_DAYS * 24 * 3600 * 1000).toISOString(),
   });
-  // Подчищаем протухшие, чтобы файл не разрастался.
-  db.sessions = db.sessions.filter(
-    (s) => Date.parse(s.expires_at) > Date.now(),
-  );
+  db.sessions = db.sessions.filter((s) => Date.parse(s.expires_at) > Date.now());
   saveDb(db);
   return token;
 }
@@ -154,8 +94,6 @@ function validateRegister(input: RegisterInput) {
   }
   if (password.length < 8) {
     fields.password = "Минимум 8 символов";
-  } else if (!/[A-Za-zА-Яа-я0-9]/.test(password)) {
-    fields.password = "Пароль слишком простой";
   }
   if (input.password2 !== undefined && input.password2 !== password) {
     fields.password2 = "Пароли не совпадают";
@@ -169,10 +107,7 @@ function validateRegister(input: RegisterInput) {
   return { fields, email };
 }
 
-/**
- * Регистрация покупателя + автоматически создаём его мини-магазин,
- * чтобы любой пользователь мог сразу публиковать товары (как продавцы Uzum).
- */
+/** Регистрация + автоматически созданный магазин (как на реальном бэкенде). */
 export function registerUser(input: RegisterInput) {
   const { fields, email } = validateRegister(input);
   const db = getDb();
@@ -226,10 +161,7 @@ export function loginUser(email: string, password: string): UserRow {
   const normalized = (email ?? "").trim().toLowerCase();
   const user = db.users.find((u) => u.email === normalized);
   if (!user || !verifyPassword(password ?? "", user)) {
-    throw new ApiError(
-      401,
-      "Неверный email или пароль. Демо-аккаунты: seller@uzum.uz / buyer@uzum.uz, пароль Password123",
-    );
+    throw new ApiError(401, "Неверный email или пароль.");
   }
   return user;
 }
@@ -269,25 +201,6 @@ export function updateProfile(userId: number, patch: Partial<UserRow>) {
     }
     user.email = email;
   }
-  if (patch.passwordHash) {
-    user.passwordHash = patch.passwordHash;
-    user.salt = patch.salt ?? user.salt;
-  }
   saveDb(db);
   return user;
 }
-
-export const DEMO_ACCOUNTS = [
-  {
-    role: "Продавец",
-    email: "seller@uzum.uz",
-    password: "Password123",
-    hint: "есть магазин «Uzum Students» — можно публиковать товары",
-  },
-  {
-    role: "Покупатель",
-    email: "buyer@uzum.uz",
-    password: "Password123",
-    hint: "демо-заказ и отзывы в личном кабинете",
-  },
-] as const;

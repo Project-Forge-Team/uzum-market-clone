@@ -1,0 +1,6 @@
+{
+  "//": "Мок-бэкенд — ESM с TypeScript-модулями, которые Node запускает нативно (type stripping). Без этого файла Node печатает MODULE_TYPELESS_PACKAGE_JSON.",
+  "name": "uzum-mock-backend",
+  "private": true,
+  "type": "module"
+}

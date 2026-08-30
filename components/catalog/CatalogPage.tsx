@@ -6,8 +6,7 @@ import SectionHeader from "@/components/ui/SectionHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import FilterPanel from "@/components/catalog/FilterPanel";
 import SortTabs from "@/components/catalog/SortTabs";
-import type { ProductListResult } from "@/lib/server/catalog";
-import type { Category } from "@/types/product";
+import type { Category, ProductListResult } from "@/types/product";
 import { productsWord } from "@/lib/format";
 
 export interface CatalogPageProps {

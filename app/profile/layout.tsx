@@ -9,7 +9,7 @@ import {
   Store,
   UserRound,
 } from "lucide-react";
-import { getCurrentUser, publicUser } from "@/lib/server/auth";
+import { getCurrentUser } from "@/lib/server/data";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Личный кабинет" };
@@ -32,9 +32,8 @@ export default async function ProfileLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const userRow = await getCurrentUser();
-  if (!userRow) redirect("/login?redirect=/profile");
-  const user = publicUser(userRow);
+  const user = await getCurrentUser();
+  if (!user) redirect("/login?redirect=/profile");
 
   return (
     <div className="mx-auto w-full max-w-[1240px] px-4 py-6">

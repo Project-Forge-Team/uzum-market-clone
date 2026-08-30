@@ -12,14 +12,12 @@ import {
 } from "lucide-react";
 import CatalogPage from "@/components/catalog/CatalogPage";
 import ProductCard from "@/components/ui/ProductCard";
-import { getCurrentUser } from "@/lib/server/auth";
 import {
-  getCategoryBySlugOrId,
-  getSellerBySlugOrId,
+  getCategory,
+  getSeller,
   listCategories,
   listProducts,
-  sellerStats,
-} from "@/lib/server/catalog";
+} from "@/lib/server/data";
 import { formatNumber, productsWord } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +29,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const shop = getSellerBySlugOrId(slug);
+  const shop = await getSeller(slug);
   if (!shop) return { title: "Магазин не найден" };
   return {
     title: `${shop.name} — магазин на Uzum Market`,
@@ -42,11 +40,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 /** Публичная страница магазина: витрина + отзывы покупателей о товарах. */
 export default async function ShopPage({ params, searchParams }: PageProps) {
   const [{ slug }, sp] = await Promise.all([params, searchParams]);
-  const shop = getSellerBySlugOrId(slug);
+  const shop = await getSeller(slug);
   if (!shop) notFound();
 
-  const user = await getCurrentUser();
-  const category = sp.category ? getCategoryBySlugOrId(sp.category) : null;
+  const category = sp.category ? await getCategory(sp.category) : null;
 
   const filters = {
     category: category?.slug,
@@ -58,18 +55,24 @@ export default async function ShopPage({ params, searchParams }: PageProps) {
     discounted: sp.discounted,
   };
 
-  const list = listProducts({
-    ...filters,
-    seller: shop.slug,
-    category: category?.slug,
-    min_price: sp.min_price ? Number(sp.min_price) : undefined,
-    max_price: sp.max_price ? Number(sp.max_price) : undefined,
-    page: sp.page ? Number(sp.page) : 1,
-    discounted: sp.discounted === "1",
-    viewerId: user?.id ?? null,
-  });
+  const [list, categories] = await Promise.all([
+    listProducts({
+      ...filters,
+      seller: shop.slug,
+      category: category?.slug,
+      page: sp.page ? Number(sp.page) : 1,
+      discounted: sp.discounted === "1",
+    }),
+    listCategories(),
+  ]);
 
-  const stats = sellerStats(shop.id);
+  // Публичных агрегатов по магазину бэкенд не отдаёт отдельно — считаем по
+  // витрине (`GET /sellers/{slug}/` возвращает активные товары магазина).
+  const stats = {
+    product_count: shop.product_count,
+    order_count: shop.order_count ?? 0,
+    views: shop.products.reduce((acc, p) => acc + p.views, 0),
+  };
 
   return (
     <>
@@ -139,7 +142,7 @@ export default async function ShopPage({ params, searchParams }: PageProps) {
         list={list}
         basePath={`/shop/${shop.slug}`}
         params={filters}
-        categories={listCategories()}
+        categories={categories}
         activeCategorySlug={category?.slug}
       />
 

@@ -10,7 +10,7 @@ import {
   type ProductRow,
   type ReviewRow,
   type SellerRow,
-} from "./db";
+} from "./db.ts";
 import type {
   Category,
   MonthlyPayment,
@@ -20,7 +20,7 @@ import type {
   Seller,
   SellerStats,
   ShopOrder,
-} from "@/types/product";
+} from "../../../types/product.ts";
 
 export const PAGE_SIZE = 20;
 

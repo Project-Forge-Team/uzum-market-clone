@@ -2,8 +2,7 @@ import Link from "next/link";
 import { Package, ShoppingBag } from "lucide-react";
 import EmptyState from "@/components/ui/EmptyState";
 import OrderCard from "@/components/profile/OrderCard";
-import { getCurrentUser } from "@/lib/server/auth";
-import { listOrders } from "@/lib/server/catalog";
+import { getCurrentUser, listOrders } from "@/lib/server/data";
 import { productsWord } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -11,8 +10,8 @@ export const metadata = { title: "Мои заказы" };
 
 export default async function MyOrdersPage() {
   const user = await getCurrentUser();
-  if (!user) return null;
-  const orders = listOrders(user.id);
+  if (!user) return null; // layout уже редиректит на /login
+  const orders = await listOrders();
 
   return (
     <div className="space-y-4">

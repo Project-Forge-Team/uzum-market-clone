@@ -21,9 +21,9 @@ import {
   type OrderRow,
   type OrderStatus,
   type ReviewRow,
-} from "./db";
-import { ApiError, toNumber } from "./http";
-import { canBuyerReview } from "./catalog";
+} from "./db.ts";
+import { ApiError, toNumber } from "./http.ts";
+import { canBuyerReview } from "./catalog.ts";
 
 /* ------------------------------------------------------------------ */
 /*  Валидаторы                                                         */

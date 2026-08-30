@@ -5,7 +5,7 @@ import Link from "next/link";
 import { BadgeCheck, Package, Search, Star } from "lucide-react";
 import type { Seller } from "@/types/product";
 
-type ShopCard = Seller & { product_count: number; order_count: number };
+type ShopCard = Seller & { product_count: number };
 
 const SORTS = [
   { value: "rating", label: "По рейтингу" },
@@ -97,7 +97,7 @@ export default function ShopsList({ sellers }: { sellers: ShopCard[] }) {
                 <Star size={13} className="fill-[#FFB800] text-[#FFB800]" />
                 {shop.rating > 0 ? shop.rating.toFixed(1).replace(".", ",") : "—"}
               </span>
-              <span className="ml-auto text-muted">{shop.order_count} заказов</span>
+              <span className="ml-auto text-muted">{shop.order_count ?? 0} заказов</span>
             </p>
           </Link>
         ))}

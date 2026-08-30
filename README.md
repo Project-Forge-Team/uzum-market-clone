@@ -2,8 +2,8 @@
 
 Учебно-портфолиошный клон маркетплейса: каталог, карточка товара, корзина, оформление
 заказа, отзывы — и **полный путь продавца**: публикация товаров, управление остатками,
-заказы и ответы на отзывы. Всё работает по-настоящему, но на локальной «базе данных»
-без внешнего бэкенда и без платежей.
+заказы и ответы на отзывы. Фронтенд работает поверх настоящего Django-бэкенда
+(`https://backend-uzum-market.onrender.com/api`), платежей нет.
 
 > Это не официальный Uzum. Дизайн и контент — упрощённая самодеятельность «по мотивам»,
 > тексты и «фото» товаров сгенерированы. Никаких данных реальных пользователей и
@@ -15,9 +15,9 @@
   клиентские — для интерактива (корзина, отзывы, фильтры, форма товара)
 - **TypeScript (strict)** — общие DTO в `types/product.ts` для API и клиента
 - **Tailwind CSS v4** — токены бренда в `app/globals.css` (`@theme`)
-- **route handlers** — своё API в `app/api/**`, без внешнего Django/Supabase
-- **Файловое хранилище** — `lib/server/db.ts`: JSON-«БД» в `.data/db.json` (атомарная
-  запись + сид из `lib/server/catalog.json`), пароли — `scrypt` с солью
+- **Django REST бэкенд** — весь стейт живёт там; фронт ходит только по HTTP
+- **Same-origin прокси** — единственный route handler `app/api/[...path]/route.ts`
+  переписывает `/api/*` на бэкенд, поэтому куки остаются same-site и CORS не нужен
 - **react-hook-form + zod** — валидация входа, регистрации, отзыва и карточки товара
 
 ## Запуск
@@ -27,12 +27,14 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
-При первом запросе создаётся `.data/db.json` с демо-каталогом (10 категорий,
-10 магазинов, 42 товара, 84 отзыва). Пересобрать сид:
+По умолчанию фронт смотрит на задеплоенный бэкенд. Другой адрес — через
+`BACKEND_URL` (можно с `/api` на конце или без):
 
 ```bash
-node scripts/gen-catalog.mjs   # пишет public/products/gen/*.svg + lib/server/catalog.json
+BACKEND_URL=http://127.0.0.1:8000 npm run dev
 ```
+
+Демо-данные на бэкенде восстанавливаются авторизованным `POST /api/demo/reset/`.
 
 Демо-аккаунты (пароль у всех `Password123`):
 
@@ -91,15 +93,16 @@ node scripts/gen-catalog.mjs   # пишет public/products/gen/*.svg + lib/serv
 - **Корзина и избранное** живут в `localStorage` под ключами со scope
   (`u<id>` / `anon`): при входе анонимная корзина объединяется с пользовательской,
   изменения синхронизируются между вкладками, цены и остатки сверяются с API.
-- **Загрузка фото.** `POST /api/uploads` (multipart) кладёт файл в `.data/uploads/`
-  и отдаёт `/api/uploads/<имя>`; в форме товара картинки можно переставлять и удалять.
+- **Загрузка фото.** `POST /api/uploads/` (multipart) отдаёт `/api/uploads/<имя>`;
+  в форме товара картинки можно переставлять и удалять.
 - **Сессия.** HttpOnly-cookie `uzum_sessionid` (7 дней) + CSRF-кука `uzum_csrf`,
   которая обязана прийти в заголовке `X-CSRFToken` на всех мутациях.
 
 ## API
 
-Локальные route handlers (все — same-origin `/api/*`, ошибки в формате
-`{ detail, fields? }`, список товаров — `{ count, page, results, facets, ... }`):
+Эндпоинты бэкенда (фронт зовёт их same-origin как `/api/*`, ошибки в формате
+`{ detail, fields? }`, список товаров — `{ count, page, results, facets, ... }`).
+Все пути, кроме `/api/health`, — со слэшем на конце:
 
 ```
 GET  /api/categories                     список категорий
@@ -123,42 +126,47 @@ POST /api/auth/register|login|logout · GET /api/auth/me · POST /api/auth/passw
 GET  /api/auth/csrf · POST /api/demo/reset
 ```
 
-Локальные обработчики конкретные, поэтому они всегда выигрывают у catch-all
-прокси `app/api/[...path]/route.ts`. Прокси при этом живой: любой `/api/*`, для
-которого обработчика нет, уходит на `BACKEND_URL` (по умолчанию — старый Django
-на Render, отсюда и 502 в песочнице без сети). Именно через него фронт
-переключится на настоящий бэкенд — план в `docs/BACKEND_SPEC.md`, §10.
+Весь `/api/*` уходит через catch-all `app/api/[...path]/route.ts` на `BACKEND_URL`
+(по умолчанию — Django на Render). Прокси пробрасывает куки `uzum_sessionid` /
+`uzum_csrf` и заголовок `X-CSRFToken` в обе стороны, поэтому браузеру не нужен ни
+CORS, ни `SameSite=None`. Картинки товаров `/products/gen/*` резолвятся сначала из
+`public/`, а промах переписывается на бэкенд (`next.config.ts`).
+
+Серверные компоненты не ходят в прокси, а зовут бэкенд напрямую через
+`lib/server/data.ts`, пробрасывая куку сессии из входящего запроса — иначе
+`own` / `has_own_review` и черновики продавца отдавались бы как гостю.
 
 ## Структура
 
 ```
-app/                    маршруты: страницы + app/api/** (route handlers)
+app/                    маршруты: страницы + app/api/[...path] (прокси на бэкенд)
 components/             layout · catalog · product · cart · checkout · profile · seller · ui
-lib/server/             db.ts (JSON-хранилище) · auth.ts · catalog.ts · actions.ts · http.ts
+lib/server/             backend.ts (транспорт) · data.ts (SSR-запросы к бэкенду)
 lib/                    api.ts (клиент) · session.tsx · cart.tsx · format.ts · use-*.ts
 types/product.ts        DTO: Product, Review, ShopOrder, UserProfile, статусы
-scripts/gen-catalog.mjs генератор демо-данных и svg-«фотографий»
+scripts/gen-catalog.mjs генератор svg-«фотографий» в public/products/gen
 public/                 баннеры, картинки товаров, favicon
-tests/                  e2e.py (55 сквозных проверок) · run-node-tests.mjs · Playwright
+tests/                  e2e.py (55 проверок) · mock-backend/ · run-node-tests.mjs · Playwright
 ```
 
 ## Проверка
 
 ```bash
 npm run lint            # eslint (next/core-web-vitals + react-hooks)
-npx tsc --noEmit        # типы
+npx --no-install tsc --noEmit   # типы
 npm test                # поднимает app в песочнице и прогон tests/e2e.py (55 шагов)
 npm run build           # продакшен-сборка
 npm start               # прод-режим на :3000
 ```
 
-`npm test` ничего не трогает в рабочей копии: демо-база и каталог сборки уезжают
-во временную папку (`UZUM_DB_DIR` / `NEXT_DIST_DIR`), порт берётся свободный,
-процесс гарантированно убивается. Скрипт идемпотентен — можно гонять подряд
-дважды и против уже запущенного сервера:
+`npm test` поднимает свой мок бэкенда (`tests/mock-backend/`, контракт 1:1 с Django)
+на свободном порту и запускает против него `next dev` — сеть и рабочая копия не
+нужны, каталог сборки и данные уезжают во временную папку (`NEXT_DIST_DIR` /
+`UZUM_DB_DIR`). Прогнать те же 55 проверок против настоящего бэкенда:
 
 ```bash
-UZUM_BASE_URL=http://127.0.0.1:3000 python3 tests/e2e.py
+BACKEND_URL=https://backend-uzum-market.onrender.com npm test
+UZUM_BASE_URL=http://127.0.0.1:3000 python3 tests/e2e.py   # против уже запущенного сервера
 ```
 
 ## Чего намеренно нет

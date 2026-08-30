@@ -3,8 +3,7 @@ import { notFound } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import OrderCard from "@/components/profile/OrderCard";
 import OrderTimeline from "@/components/profile/OrderTimeline";
-import { getCurrentUser } from "@/lib/server/auth";
-import { getOrderForUser } from "@/lib/server/catalog";
+import { getCurrentUser, getOrder } from "@/lib/server/data";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Заказ" };
@@ -20,7 +19,8 @@ export default async function OrderDetailPage({
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const order = getOrderForUser(Number(id), user.id);
+  // Чужой заказ бэкенд отдаёт как 404 — показываем страницу «не найдено».
+  const order = await getOrder(id);
   if (!order) notFound();
 
   return (

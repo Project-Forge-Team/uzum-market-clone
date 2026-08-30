@@ -1,16 +1,13 @@
 import SellerOrders from "@/components/seller/SellerOrders";
-import { getCurrentUser } from "@/lib/server/auth";
-import { getDb } from "@/lib/server/db";
-import { sellerOrders } from "@/lib/server/catalog";
+import { getCurrentUser, listShopOrders } from "@/lib/server/data";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Заказы магазина" };
 
 export default async function CabinetOrdersPage() {
   const user = await getCurrentUser();
-  if (!user) return null;
-  const shop = user.seller_id ? getDb().sellers.find((s) => s.id === user.seller_id) : null;
-  const orders = shop ? sellerOrders(shop.id) : [];
+  if (!user) return null; // layout уже редиректит на /login
+  const { results: orders } = await listShopOrders();
 
   return (
     <div className="space-y-4">

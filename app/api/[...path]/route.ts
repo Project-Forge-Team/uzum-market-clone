@@ -1,30 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  BACKEND_API,
+  BACKEND_ORIGIN,
+  BACKEND_TIMEOUT_MS,
+  normalizeApiPath,
+} from "@/lib/server/backend";
 
 /**
- * Прокси всех клиентских запросов /api/* → Django-бэкенд.
+ * Прокси всех браузерных запросов /api/* → Django-бэкенд.
  *
- * Почему это нужно: куки сессии (HttpOnly) и CSRF-токены работают без
- * CORS-танцев только в рамках одного origin. Фронт на Vercel ходит на
- * бэкенд на Render через этот же-origin прокси.
+ * Зачем прокси, а не прямые запросы с CORS: куки сессии (HttpOnly) и
+ * double-submit CSRF работают без танцев только в рамках одного origin.
+ * Фронт ходит на свой же `/api/*`, а сюда уже приходит серверный fetch.
  *
- * Критичные правила, которые раньше были сломаны (см. git history):
- *  1. Django требует трейлинг-слэш (/api/auth/login/). Next.js отдаёт
- *     params БЕЗ пустого сегмента для URL со слэшем, поэтому путь нужно
- *     нормализовать самому — иначе Django отвечает 301 (APPEND_SLASH),
- *     который прокси раньше отдавал браузеру без Location → fetch падал
- *     с "Failed to fetch" на каждом запросе авторизации.
- *  2. Заголовки ответа (в т.ч. Location и Content-Type) нужно копировать.
- *  3. Set-Cookie может быть несколько — только getSetCookie() переносит
- *     их корректно (headers.get() склеивает их в один битый заголовок).
- *  4. Hop-by-hop заголовки и accept-encoding нельзя пробрасывать.
+ * Критичные правила (каждое было багом в истории репозитория):
+ *  1. Django с APPEND_SLASH ждёт `/api/auth/login/`. Next отдаёт params без
+ *     пустого сегмента, поэтому путь нормализуем сами (normalizeApiPath) —
+ *     иначе прилетает 301, а POST после редиректа деградирует в GET.
+ *     Исключения — `/api/health` и файлы `/api/uploads/<имя>.png`: там слэша
+ *     быть не должно, бэкенд отвечает на них 404.
+ *  2. Заголовки ответа (Content-Type, Location) нужно копировать.
+ *  3. Set-Cookie может быть несколько — только getSetCookie() переносит их
+ *     корректно (headers.get() склеил бы их в одну битую куку и сессия
+ *     не сохранялась бы после логина).
+ *  4. Hop-by-hop заголовки и accept-encoding пробрасывать нельзя.
+ *  5. Origin/Referer подменяем на домен бэкенда: запрос исходит от нас, как
+ *     от обычного reverse-proxy, иначе CSRF-проверка отвергнет чужой домен.
  */
-
-const BACKEND_ORIGIN = (
-  process.env.BACKEND_URL ?? "https://backend-uzum-market.onrender.com/api"
-)
-  .replace(/\/+$/, "")
-  .replace(/\/api$/, "");
-const BACKEND_API = `${BACKEND_ORIGIN}/api`;
 
 /** Заголовки запроса, которые нельзя пробрасывать на бэкенд. */
 const SKIP_REQUEST_HEADERS = new Set([
@@ -56,9 +58,10 @@ const PASS_RESPONSE_HEADERS = [
   "allow",
   "etag",
   "last-modified",
+  "content-disposition",
+  // Rate limit на логине: фронт показывает «подождите N секунд».
+  "retry-after",
 ];
-
-const REQUEST_TIMEOUT_MS = 55_000; // Render free tier: холодный старт ~50с
 
 interface ProxyContext {
   params: Promise<{ path?: string[] }>;
@@ -71,10 +74,7 @@ async function proxyRequest(
 ): Promise<NextResponse> {
   const resolvedParams = await context.params;
   const segments = (resolvedParams.path ?? []).filter(Boolean);
-
-  // 🔑 Нормализация: всегда добавляем трейлинг-слэш (Django: APPEND_SLASH).
-  const joined = segments.join("/");
-  const targetPath = joined === "" ? "" : `${joined}/`;
+  const targetPath = normalizeApiPath(segments.join("/"));
   const search = req.nextUrl.search || "";
 
   // Копируем только безопасные заголовки браузерного запроса.
@@ -84,18 +84,13 @@ async function proxyRequest(
       headers.set(key, value);
     }
   }
-  // Django проверяет Origin/Referer для CSRF. Запрос к бэкенду исходит от
-  // нас, поэтому Origin должен быть origin'ом бэкенда (как у обычного
-  // reverse-proxy), иначе CSRF-проверка отвергнет чужой домен.
-  if (headers.has("origin")) {
-    headers.set("origin", BACKEND_ORIGIN);
-  }
-  if (headers.has("referer")) {
-    headers.set("referer", `${BACKEND_ORIGIN}/`);
-  }
+  if (headers.has("origin")) headers.set("origin", BACKEND_ORIGIN);
+  if (headers.has("referer")) headers.set("referer", `${BACKEND_ORIGIN}/`);
 
+  // Тело читаем как поток байт: multipart-загрузка картинок не должна
+  // испортиться перекодировкой в строку.
   const hasBody = method !== "GET" && method !== "HEAD";
-  const body = hasBody ? await req.text() : undefined;
+  const body = hasBody ? await req.arrayBuffer() : undefined;
 
   const doFetch = (url: string) =>
     fetch(url, {
@@ -103,22 +98,16 @@ async function proxyRequest(
       headers,
       body,
       redirect: "manual",
-      credentials: "include",
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS),
     });
 
   try {
     let res = await doFetch(`${BACKEND_API}/${targetPath}${search}`);
 
-    // Страховка: если бэкенд всё же редиректит (напр. /login → /login/),
-    // идём за ним сами, сохраняя метод и тело, — браузеру 3xx не отдаём.
+    // Страховка: если бэкенд всё же редиректит, идём за ним сами, сохраняя
+    // метод и тело, — браузеру 3xx не отдаём.
     let hops = 0;
-    while (
-      res.status >= 300 &&
-      res.status < 400 &&
-      res.status !== 304 &&
-      hops < 3
-    ) {
+    while (res.status >= 300 && res.status < 400 && res.status !== 304 && hops < 3) {
       const location = res.headers.get("location");
       if (!location) break;
       const nextUrl = new URL(location, `${BACKEND_API}/${targetPath}`).toString();
@@ -139,23 +128,16 @@ async function proxyRequest(
     });
 
     // 🔑 Set-Cookie: переносим КАЖДУЮ куку отдельным заголовком.
-    // headers.get("set-cookie") склеил бы их запятыми в одну битую куку —
-    // из-за этого сессия после логина не сохранялась бы.
     const setCookies =
-      typeof res.headers.getSetCookie === "function"
-        ? res.headers.getSetCookie()
-        : [];
+      typeof res.headers.getSetCookie === "function" ? res.headers.getSetCookie() : [];
     for (const cookie of setCookies) {
       response.headers.append("set-cookie", cookie);
     }
 
-    // Fallback для сред без getSetCookie(): лучше даже склеенная кука,
-    // чем ни одной (см. partial-fix на main).
+    // Fallback для сред без getSetCookie(): лучше даже склеенная кука, чем ни одной.
     if (setCookies.length === 0) {
       const legacySetCookie = res.headers.get("set-cookie");
-      if (legacySetCookie) {
-        response.headers.set("set-cookie", legacySetCookie);
-      }
+      if (legacySetCookie) response.headers.set("set-cookie", legacySetCookie);
     }
 
     return response;

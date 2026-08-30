@@ -1,8 +1,11 @@
 import { notFound } from "next/navigation";
 import ProductForm from "@/components/seller/ProductForm";
-import { getCurrentUser } from "@/lib/server/auth";
-import { getDb } from "@/lib/server/db";
-import { getProductByIdOrSlug, listCategories } from "@/lib/server/catalog";
+import {
+  getCurrentUser,
+  getMyShop,
+  getProduct,
+  listCategories,
+} from "@/lib/server/data";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Редактирование товара" };
@@ -14,17 +17,22 @@ export default async function EditProductPage({
 }) {
   const { id } = await params;
   const user = await getCurrentUser();
-  if (!user) return null;
-  const shop = user.seller_id ? getDb().sellers.find((s) => s.id === user.seller_id) : null;
+  if (!user) return null; // layout уже редиректит на /login
+
+  const [shop, product, categories] = await Promise.all([
+    getMyShop(),
+    getProduct(id),
+    listCategories(),
+  ]);
   if (!shop) notFound();
 
-  const product = getProductByIdOrSlug(id, user.id, { includeHidden: true });
-  // Чужой товар показывать в редакторе нельзя — отдаём 404, как настоящий API.
+  // Чужой товар в редакторе показывать нельзя: свой черновик бэкенд отдаёт
+  // владельцу, но чужой активный товар доступен всем — проверяем магазин.
   if (!product || product.seller?.id !== shop.id) notFound();
 
   return (
     <ProductForm
-      categories={listCategories()}
+      categories={categories}
       product={product}
       shopName={shop.name}
       shopId={shop.id}
